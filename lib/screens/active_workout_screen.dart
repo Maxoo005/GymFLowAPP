@@ -5,6 +5,7 @@ import '../models/exercise.dart';
 import '../models/workout.dart';
 import '../services/workout_service.dart';
 import '../services/plan_service.dart';
+import '../services/notification_service.dart';
 
 class ActiveWorkoutScreen extends StatefulWidget {
   final Workout workout;
@@ -21,6 +22,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   Timer? _timer;
   int _seconds = 0;
 
+  int _restSecondsRemaining = 0;
+  Timer? _restTimer;
+
   @override
   void initState() {
     super.initState();
@@ -34,9 +38,33 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     });
   }
 
+  void _startRestTimer(int seconds) {
+    if (seconds <= 0) return;
+    _restTimer?.cancel();
+    setState(() => _restSecondsRemaining = seconds);
+    _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        if (_restSecondsRemaining > 0) {
+          _restSecondsRemaining--;
+          if (_restSecondsRemaining == 0) {
+            timer.cancel();
+            NotificationService.instance.showTimerFinishedNotification();
+          }
+        } else {
+          timer.cancel();
+        }
+      });
+    });
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
+    _restTimer?.cancel();
     super.dispose();
   }
 
@@ -44,6 +72,13 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     final m = _seconds ~/ 60;
     final s = _seconds % 60;
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
+  }
+
+  String get _restTimeLabel {
+    final m = _restSecondsRemaining ~/ 60;
+    final s = _restSecondsRemaining % 60;
+    if (m > 0) return '${m}m ${s.toString().padLeft(2, '0')}s';
+    return '${s}s';
   }
 
   // ── Picker ćwiczeń (dodaj nowe) ───────────────────────
@@ -189,9 +224,34 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                     onDelete: () => setState(() => _workout.exercises.removeAt(i)),
                     onChanged: () => setState(() {}),
                     onSwap: () => _pickExercise(replaceIndex: i),
+                    onStartRest: _startRestTimer,
                   ),
                 ),
         ),
+        // ── Pasek stopera przerwy ────────────────────────
+        if (_restSecondsRemaining > 0)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            color: AppTheme.accent.withValues(alpha: 0.15),
+            child: Row(children: [
+              const Icon(Icons.timer_outlined, color: AppTheme.accent),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text('Przerwa: $_restTimeLabel',
+                    style: const TextStyle(
+                        color: AppTheme.accent, fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, color: AppTheme.accent),
+                onPressed: () {
+                  _restTimer?.cancel();
+                  setState(() => _restSecondsRemaining = 0);
+                },
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+            ]),
+          ),
         // ── Dolny pasek ─────────────────────────────
         SafeArea(
           child: Padding(
@@ -239,11 +299,13 @@ class _ExerciseCard extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback onChanged;
   final VoidCallback onSwap;
+  final ValueChanged<int> onStartRest;
   const _ExerciseCard({
     required this.workoutSet,
     required this.onDelete,
     required this.onChanged,
     required this.onSwap,
+    required this.onStartRest,
   });
 
   @override
@@ -306,7 +368,11 @@ class _ExerciseCard extends StatelessWidget {
                     }
                   : null,
               onChanged: (updated) {
+                final wasDone = workoutSet.entries[idx].isDone;
                 workoutSet.entries[idx] = updated;
+                if (!wasDone && updated.isDone) {
+                  onStartRest(workoutSet.restSeconds);
+                }
                 onChanged();
               },
             );
@@ -419,6 +485,20 @@ class _SetRow extends StatelessWidget {
           child: _DifficultyPicker(
             value: entry.difficulty,
             onChanged: (d) => onChanged(entry.copyWith(difficulty: d)),
+          ),
+        ),
+        const SizedBox(width: 8),
+        // Wykonane (Checkbox / Przycisk)
+        GestureDetector(
+          onTap: () => onChanged(entry.copyWith(isDone: !entry.isDone)),
+          child: Container(
+            width: 28, height: 28,
+            decoration: BoxDecoration(
+              color: entry.isDone ? AppTheme.success : Colors.transparent,
+              border: Border.all(color: entry.isDone ? AppTheme.success : AppTheme.textSecond.withValues(alpha: 0.5)),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: entry.isDone ? const Icon(Icons.check, size: 18, color: Colors.white) : null,
           ),
         ),
         // Usuń serię

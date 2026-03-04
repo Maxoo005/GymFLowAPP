@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../services/workout_service.dart';
 import '../services/profile_service.dart';
+import '../services/plan_service.dart';
 import '../models/workout.dart';
 import 'active_workout_screen.dart';
 
@@ -79,15 +80,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(trainedToday ? 'Dzisiaj ćwiczyłeś! 🔥' : 'Brak treningu dzisiaj',
                       style: textTheme.titleMedium),
-                    Text(trainedToday ? 'Świetna robota, tak trzymaj!'
+                    Text(trainedToday ? 'Świetna robota – jeszcze jeden?'
                         : 'Czas na trening – możesz to zrobić!',
                       style: textTheme.bodyMedium),
                   ])),
-                  if (!trainedToday)
-                    TextButton(
-                      onPressed: () => _quickStart(context),
-                      child: const Text('Start', style: TextStyle(color: AppTheme.accent)),
-                    ),
+                  TextButton(
+                    onPressed: () => _quickStart(context),
+                    child: Text(trainedToday ? 'Kolejny' : 'Start',
+                        style: const TextStyle(color: AppTheme.accent)),
+                  ),
                 ]),
               ),
               const SizedBox(height: 24),
@@ -126,7 +127,42 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _quickStart(BuildContext context) async {
+  void _quickStart(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.bgCard,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 40, height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 20),
+            Text('Nowy trening', style: Theme.of(ctx).textTheme.titleLarge),
+            const SizedBox(height: 20),
+            _HomeOptionTile(
+              icon: Icons.flash_on,
+              title: 'Trening swobodny',
+              subtitle: 'Zacznij bez planu, dodawaj ćwiczenia na bieżąco',
+              onTap: () { Navigator.pop(ctx); _startFree(); },
+            ),
+            const SizedBox(height: 12),
+            _HomeOptionTile(
+              icon: Icons.list_alt,
+              title: 'Z planu treningowego',
+              subtitle: 'Wybierz gotowy plan i zacznij trening',
+              onTap: () { Navigator.pop(ctx); _startFromPlan(); },
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startFree() async {
     final ctrl = TextEditingController();
     final name = await showDialog<String>(
       context: context,
@@ -138,21 +174,97 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Anuluj')),
           ElevatedButton(
-            onPressed: () => Navigator.pop(dlgCtx, ctrl.text.trim().isEmpty ? 'Trening' : ctrl.text.trim()),
+            onPressed: () => Navigator.pop(
+                dlgCtx, ctrl.text.trim().isEmpty ? 'Trening' : ctrl.text.trim()),
             child: const Text('Start'),
           ),
         ],
       ),
     );
     if (name != null && mounted) {
-      final w = Workout(name: name);
-      // ignore: use_build_context_synchronously
       final result = await Navigator.push<bool>(
         context,
-        MaterialPageRoute(builder: (_) => ActiveWorkoutScreen(workout: w)),
+        MaterialPageRoute(
+            builder: (_) => ActiveWorkoutScreen(workout: Workout(name: name))),
       );
       if (result == true && mounted) setState(() {});
     }
+  }
+
+  void _startFromPlan() {
+    final plans = PlanService.instance.plans;
+    if (plans.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Brak planów – utwórz plan w zakładce Treningi!')),
+      );
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.bgCard,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.5,
+        builder: (_, scroll) => Column(children: [
+          const SizedBox(height: 12),
+          Container(width: 40, height: 4,
+              decoration: BoxDecoration(
+                  color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text('Wybierz plan', style: Theme.of(ctx).textTheme.titleLarge),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: ListView.builder(
+              controller: scroll,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: plans.length,
+              itemBuilder: (_, i) {
+                final plan = plans[i];
+                return ListTile(
+                  leading: Container(
+                    width: 40, height: 40,
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.calendar_today, color: AppTheme.accent, size: 18),
+                  ),
+                  title: Text(plan.name),
+                  subtitle: Text('${plan.exercises.length} ćwiczeń',
+                      style: const TextStyle(color: AppTheme.textSecond, fontSize: 12)),
+                  trailing: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      final memory = PlanService.instance.getMemoryForPlan(plan.id);
+                      final sets = plan.toWorkoutSets(memory: memory);
+                      final workout = Workout(name: plan.name, exercises: sets);
+                      final result = await Navigator.push<bool>(
+                        // ignore: use_build_context_synchronously
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ActiveWorkoutScreen(
+                              workout: workout, planId: plan.id),
+                        ),
+                      );
+                      if (result == true && mounted) setState(() {});
+                    },
+                    style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8)),
+                    child: const Text('Start'),
+                  ),
+                );
+              },
+            ),
+          ),
+        ]),
+      ),
+    );
   }
 }
 
@@ -268,5 +380,44 @@ class _NoWorkoutCard extends StatelessWidget {
       TextButton(onPressed: onStart, child: const Text('Start',
           style: TextStyle(color: AppTheme.accent))),
     ]),
+  );
+}
+
+// ── Kafelek opcji startu ─────────────────────────────────
+class _HomeOptionTile extends StatelessWidget {
+  final IconData icon;
+  final String title, subtitle;
+  final VoidCallback onTap;
+  const _HomeOptionTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: BorderRadius.circular(14),
+    child: Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: Row(children: [
+        Container(
+          width: 44, height: 44,
+          decoration: BoxDecoration(
+            color: AppTheme.accent.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: AppTheme.accent, size: 22),
+        ),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title, style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 2),
+          Text(subtitle, style: const TextStyle(color: AppTheme.textSecond, fontSize: 12)),
+        ])),
+        const Icon(Icons.chevron_right, color: AppTheme.textSecond, size: 20),
+      ]),
+    ),
   );
 }

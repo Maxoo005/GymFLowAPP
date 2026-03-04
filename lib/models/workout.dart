@@ -5,29 +5,34 @@ class SetEntry {
   int reps;
   double weight; // kg
   int difficulty; // 1–5
+  bool isDone; // Transient: czy seria została wykonana podczs treningu
 
   SetEntry({
     this.reps = 10,
     this.weight = 0,
     this.difficulty = 3,
+    this.isDone = false,
   });
 
   Map<String, dynamic> toJson() => {
     'reps': reps,
     'weight': weight,
     'difficulty': difficulty,
+    'isDone': isDone,
   };
 
   factory SetEntry.fromJson(Map<String, dynamic> json) => SetEntry(
     reps: json['reps'] ?? 10,
     weight: (json['weight'] ?? 0).toDouble(),
     difficulty: json['difficulty'] ?? 3,
+    isDone: json['isDone'] ?? false,
   );
 
-  SetEntry copyWith({int? reps, double? weight, int? difficulty}) => SetEntry(
+  SetEntry copyWith({int? reps, double? weight, int? difficulty, bool? isDone}) => SetEntry(
     reps: reps ?? this.reps,
     weight: weight ?? this.weight,
     difficulty: difficulty ?? this.difficulty,
+    isDone: isDone ?? this.isDone,
   );
 }
 
@@ -41,11 +46,14 @@ class WorkoutSet {
   /// Jeśli null lub różne od exerciseId → ćwiczenie zamienione → nie zapamiętujemy.
   final String? planExerciseId;
 
+  int restSeconds; // Nowe pole: czas przerwy po serii (w sekundach)
+
   WorkoutSet({
     required this.exerciseId,
     required this.exerciseName,
     List<SetEntry>? entries,
     this.planExerciseId,
+    this.restSeconds = 60,
   }) : entries = entries ?? [SetEntry(), SetEntry()]; // domyślnie 2 serie
 
   /// Czy to oryginalne ćwiczenie z planu (nie zamienione)
@@ -62,6 +70,7 @@ class WorkoutSet {
     'exerciseName': exerciseName,
     'entries': entries.map((e) => e.toJson()).toList(),
     if (planExerciseId != null) 'planExerciseId': planExerciseId,
+    'restSeconds': restSeconds,
   };
 
   factory WorkoutSet.fromJson(Map<String, dynamic> json) {
@@ -72,6 +81,7 @@ class WorkoutSet {
         exerciseName: json['exerciseName'],
         entries: (json['entries'] as List).map((e) => SetEntry.fromJson(e)).toList(),
         planExerciseId: json['planExerciseId'],
+        restSeconds: json['restSeconds'] ?? 60,
       );
     } else {
       // Stary format – konwertuj
@@ -82,6 +92,7 @@ class WorkoutSet {
         exerciseId: json['exerciseId'],
         exerciseName: json['exerciseName'],
         entries: List.generate(sets, (_) => SetEntry(reps: reps, weight: weight)),
+        restSeconds: 60,
       );
     }
   }
@@ -163,7 +174,7 @@ class WorkoutPlan {
   );
 
   /// Konwertuj plan na WorkoutSet-y gotowe do treningu.
-  /// [memory] – opcjonalne zapamiętane serie: exerciseId → List<SetEntry>
+  /// [memory] – opcjonalne zapamiętane serie: exerciseId -> List<SetEntry>
   List<WorkoutSet> toWorkoutSets({Map<String, List<SetEntry>>? memory}) =>
       exercises.map((e) {
         final remembered = memory?[e.exerciseId];
@@ -171,6 +182,7 @@ class WorkoutPlan {
           exerciseId: e.exerciseId,
           exerciseName: e.exerciseName,
           planExerciseId: e.exerciseId, // oznaczymy jako "oryginalne"
+          restSeconds: e.restSeconds,
           entries: remembered != null
               ? remembered.map((s) => SetEntry(reps: s.reps, weight: s.weight, difficulty: s.difficulty)).toList()
               : [SetEntry(), SetEntry()],
@@ -184,12 +196,14 @@ class PlanExercise {
   final String exerciseName;
   int defaultSets;
   int defaultReps;
+  int restSeconds; // Nowe pole: czas przerwy po serii (w sekundach)
 
   PlanExercise({
     required this.exerciseId,
     required this.exerciseName,
     this.defaultSets = 3,
     this.defaultReps = 10,
+    this.restSeconds = 60,
   });
 
   Map<String, dynamic> toJson() => {
@@ -197,6 +211,7 @@ class PlanExercise {
     'exerciseName': exerciseName,
     'defaultSets': defaultSets,
     'defaultReps': defaultReps,
+    'restSeconds': restSeconds,
   };
 
   factory PlanExercise.fromJson(Map<String, dynamic> json) => PlanExercise(
@@ -204,5 +219,6 @@ class PlanExercise {
     exerciseName: json['exerciseName'],
     defaultSets: json['defaultSets'] ?? 3,
     defaultReps: json['defaultReps'] ?? 10,
+    restSeconds: json['restSeconds'] ?? 60,
   );
 }

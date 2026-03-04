@@ -5,6 +5,7 @@ import '../models/exercise.dart';
 import '../services/workout_service.dart';
 import '../services/plan_service.dart';
 import 'active_workout_screen.dart';
+import 'workout_detail_screen.dart';
 
 class WorkoutScreen extends StatefulWidget {
   const WorkoutScreen({super.key});
@@ -70,6 +71,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
             plans: _plans,
             onAddPlan: _showCreatePlanDialog,
             onStartPlan: _startWorkoutFromPlan,
+            onEditPlan: (plan) => _showCreatePlanDialog(existing: plan),
             onDeletePlan: (id) async {
               await PlanService.instance.deletePlan(id);
               if (mounted) setState(() {});
@@ -223,10 +225,14 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     await _startWorkout(plan.name, sets, planId: plan.id);
   }
 
-  // ── Tworzenie planu ────────────────────────────────────
-  void _showCreatePlanDialog() {
-    Navigator.push(context,
-        MaterialPageRoute(builder: (_) => const CreatePlanScreen())).then((_) {
+  // ── Tworzenie / edycja planu ──────────────────────────
+  void _showCreatePlanDialog({WorkoutPlan? existing}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreatePlanScreen(existingPlan: existing),
+      ),
+    ).then((_) {
       if (mounted) setState(() {});
     });
   }
@@ -261,6 +267,12 @@ class _HistoryTab extends StatelessWidget {
       itemBuilder: (ctx, i) => _WorkoutHistoryCard(
         workout: workouts[i],
         onDelete: () => onDelete(workouts[i].id),
+        onTap: () => Navigator.push(
+          ctx,
+          MaterialPageRoute(
+            builder: (_) => WorkoutDetailScreen(workout: workouts[i]),
+          ),
+        ),
       ),
     );
   }
@@ -269,7 +281,8 @@ class _HistoryTab extends StatelessWidget {
 class _WorkoutHistoryCard extends StatelessWidget {
   final Workout workout;
   final VoidCallback onDelete;
-  const _WorkoutHistoryCard({required this.workout, required this.onDelete});
+  final VoidCallback onTap;
+  const _WorkoutHistoryCard({required this.workout, required this.onDelete, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -289,33 +302,37 @@ class _WorkoutHistoryCard extends StatelessWidget {
       onDismissed: (_) => onDelete(),
       child: Card(
         margin: const EdgeInsets.only(bottom: 12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(children: [
-            Container(
-              width: 48, height: 48,
-              decoration: BoxDecoration(
-                color: AppTheme.accent.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              Container(
+                width: 48, height: 48,
+                decoration: BoxDecoration(
+                  color: AppTheme.accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.fitness_center, color: AppTheme.accent),
               ),
-              child: const Icon(Icons.fitness_center, color: AppTheme.accent),
-            ),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(workout.name, style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 4),
-              Text(
-                '$dateStr  •  ${workout.exercises.length} ćw.  •  ${workout.durationMinutes} min',
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              if (workout.totalVolume > 0) ...[
-                const SizedBox(height: 2),
-                Text('Objętość: ${workout.totalVolume.toStringAsFixed(0)} kg',
-                    style: const TextStyle(color: AppTheme.accent, fontSize: 12)),
-              ],
-            ])),
-            const Icon(Icons.chevron_right, color: AppTheme.textSecond),
-          ]),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(workout.name, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  '$dateStr  •  ${workout.exercises.length} ćw.  •  ${workout.durationMinutes} min',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                if (workout.totalVolume > 0) ...[
+                  const SizedBox(height: 2),
+                  Text('Objętość: ${workout.totalVolume.toStringAsFixed(0)} kg',
+                      style: const TextStyle(color: AppTheme.accent, fontSize: 12)),
+                ],
+              ])),
+              const Icon(Icons.chevron_right, color: AppTheme.accent),
+            ]),
+          ),
         ),
       ),
     );
@@ -330,8 +347,9 @@ class _PlansTab extends StatelessWidget {
   final List<WorkoutPlan> plans;
   final VoidCallback onAddPlan;
   final ValueChanged<WorkoutPlan> onStartPlan;
+  final ValueChanged<WorkoutPlan> onEditPlan;
   final ValueChanged<String> onDeletePlan;
-  const _PlansTab({required this.plans, required this.onAddPlan, required this.onStartPlan, required this.onDeletePlan});
+  const _PlansTab({required this.plans, required this.onAddPlan, required this.onStartPlan, required this.onEditPlan, required this.onDeletePlan});
 
   @override
   Widget build(BuildContext context) {
@@ -368,6 +386,7 @@ class _PlansTab extends StatelessWidget {
               return _PlanCard(
                 plan: plans[i],
                 onStart: () => onStartPlan(plans[i]),
+                onEdit: () => onEditPlan(plans[i]),
                 onDelete: () => onDeletePlan(plans[i].id),
               );
             },
@@ -378,8 +397,9 @@ class _PlansTab extends StatelessWidget {
 class _PlanCard extends StatelessWidget {
   final WorkoutPlan plan;
   final VoidCallback onStart;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
-  const _PlanCard({required this.plan, required this.onStart, required this.onDelete});
+  const _PlanCard({required this.plan, required this.onStart, required this.onEdit, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -414,10 +434,19 @@ class _PlanCard extends StatelessWidget {
                 Text('${plan.exercises.length} ćwiczeń',
                     style: Theme.of(context).textTheme.bodyMedium),
               ])),
+              // Edytuj
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, color: AppTheme.textSecond, size: 20),
+                tooltip: 'Edytuj plan',
+                onPressed: onEdit,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              const SizedBox(width: 8),
               ElevatedButton(
                 onPressed: onStart,
                 style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
                 child: const Text('Start'),
               ),
@@ -446,15 +475,26 @@ class _PlanCard extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════
 
 class CreatePlanScreen extends StatefulWidget {
-  const CreatePlanScreen({super.key});
+  final WorkoutPlan? existingPlan;
+  const CreatePlanScreen({super.key, this.existingPlan});
 
   @override
   State<CreatePlanScreen> createState() => _CreatePlanScreenState();
 }
 
 class _CreatePlanScreenState extends State<CreatePlanScreen> {
-  final _nameCtrl = TextEditingController();
-  final List<PlanExercise> _exercises = [];
+  late final TextEditingController _nameCtrl;
+  late final List<PlanExercise> _exercises;
+
+  bool get _isEditing => widget.existingPlan != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final plan = widget.existingPlan;
+    _nameCtrl = TextEditingController(text: plan?.name ?? '');
+    _exercises = plan != null ? List.of(plan.exercises) : [];
+  }
 
   void _addExercise() {
     MuscleGroup? selected;
@@ -518,8 +558,20 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
           const SnackBar(content: Text('Podaj nazwę planu')));
       return;
     }
-    final plan = WorkoutPlan(name: name, exercises: _exercises);
-    await PlanService.instance.addPlan(plan);
+    if (_isEditing) {
+      // Aktualizacja istniejącego planu
+      final updated = WorkoutPlan(
+        id: widget.existingPlan!.id,
+        name: name,
+        exercises: _exercises,
+        createdAt: widget.existingPlan!.createdAt,
+      );
+      await PlanService.instance.updatePlan(updated);
+    } else {
+      // Nowy plan
+      final plan = WorkoutPlan(name: name, exercises: _exercises);
+      await PlanService.instance.addPlan(plan);
+    }
     if (mounted) Navigator.pop(context);
   }
 
@@ -533,7 +585,7 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Nowy plan'),
+        title: Text(_isEditing ? 'Edytuj plan' : 'Nowy plan'),
         actions: [
           TextButton(
             onPressed: _savePlan,
@@ -577,13 +629,49 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
                     return Card(
                       key: Key(ex.exerciseId + i.toString()),
                       margin: const EdgeInsets.only(bottom: 10),
-                      child: ListTile(
-                        leading: const Icon(Icons.drag_handle, color: AppTheme.textSecond),
-                        title: Text(ex.exerciseName),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline, color: AppTheme.textSecond),
-                          onPressed: () => setState(() => _exercises.removeAt(i)),
-                        ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                        child: Column(children: [
+                          ListTile(
+                            leading: const Icon(Icons.drag_handle, color: AppTheme.textSecond),
+                            title: Text(ex.exerciseName),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline, color: AppTheme.textSecond),
+                              onPressed: () => setState(() => _exercises.removeAt(i)),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Row(children: [
+                              const Icon(Icons.timer_outlined, size: 18, color: AppTheme.textSecond),
+                              const SizedBox(width: 8),
+                              const Text('Przerwa po serii:', style: TextStyle(color: AppTheme.textSecond, fontSize: 13)),
+                              const Spacer(),
+                              IconButton(
+                                icon: const Icon(Icons.remove_circle_outline, color: AppTheme.accent),
+                                onPressed: () {
+                                  if (ex.restSeconds > 10) {
+                                    setState(() => ex.restSeconds -= 10);
+                                  }
+                                },
+                              ),
+                              SizedBox(
+                                width: 50,
+                                child: Text(
+                                  ex.restSeconds >= 60
+                                      ? '${ex.restSeconds ~/ 60}m ${ex.restSeconds % 60}s'
+                                      : '${ex.restSeconds}s',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.add_circle_outline, color: AppTheme.accent),
+                                onPressed: () => setState(() => ex.restSeconds += 10),
+                              ),
+                            ]),
+                          ),
+                        ]),
                       ),
                     );
                   },
