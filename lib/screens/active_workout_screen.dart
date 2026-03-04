@@ -4,10 +4,13 @@ import '../theme/app_theme.dart';
 import '../models/exercise.dart';
 import '../models/workout.dart';
 import '../services/workout_service.dart';
+import '../services/plan_service.dart';
 
 class ActiveWorkoutScreen extends StatefulWidget {
   final Workout workout;
-  const ActiveWorkoutScreen({super.key, required this.workout});
+  /// Jeśli trening pochodzi z planu – jego ID (do zapisu pamięci ciężarów)
+  final String? planId;
+  const ActiveWorkoutScreen({super.key, required this.workout, this.planId});
 
   @override
   State<ActiveWorkoutScreen> createState() => _ActiveWorkoutScreenState();
@@ -43,8 +46,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
-  // ── Dodaj ćwiczenie ───────────────────────────────────
-  void _pickExercise() {
+  // ── Picker ćwiczeń (dodaj nowe) ───────────────────────
+  void _pickExercise({int? replaceIndex}) {
     MuscleGroup? selected;
     showModalBottomSheet(
       context: context,
@@ -57,51 +60,71 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
           expand: false,
           initialChildSize: 0.85,
           maxChildSize: 0.95,
-          builder: (_, scroll) => Column(
-            children: [
-              const SizedBox(height: 12),
-              Container(width: 40, height: 4,
-                  decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
-              const SizedBox(height: 16),
-              Padding(padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text('Wybierz ćwiczenie', style: Theme.of(ctx).textTheme.titleLarge)),
-              const SizedBox(height: 12),
-              // filtry
-              SizedBox(height: 40,
-                child: ListView(scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  children: [
-                    _FChip('Wszystkie', selected == null, () => setB(() => selected = null)),
-                    ...MuscleGroup.values.map((g) => _FChip(g.displayName, selected == g,
-                        () => setB(() => selected = selected == g ? null : g))),
-                  ],
-                ),
+          builder: (_, scroll) => Column(children: [
+            const SizedBox(height: 12),
+            Container(width: 40, height: 4,
+                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                replaceIndex != null ? 'Zamień ćwiczenie' : 'Wybierz ćwiczenie',
+                style: Theme.of(ctx).textTheme.titleLarge,
+              )),
+            const SizedBox(height: 12),
+            SizedBox(height: 40,
+              child: ListView(scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  _FChip('Wszystkie', selected == null, () => setB(() => selected = null)),
+                  ...MuscleGroup.values.map((g) => _FChip(g.displayName, selected == g,
+                      () => setB(() => selected = selected == g ? null : g))),
+                ],
               ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: ListView(controller: scroll,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  children: defaultExercises
-                      .where((e) => selected == null || e.muscleGroup == selected)
-                      .map((e) => ListTile(
-                    title: Text(e.name),
-                    subtitle: Text(e.muscleGroup.displayName,
-                        style: const TextStyle(color: AppTheme.accent, fontSize: 12)),
-                    trailing: const Icon(Icons.add_circle, color: AppTheme.accent),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      setState(() {
-                        _workout.exercises.add(WorkoutSet(
-                          exerciseId: e.id,
-                          exerciseName: e.name,
-                        ));
-                      });
-                    },
-                  )).toList(),
+            ),
+            const SizedBox(height: 8),
+            Expanded(child: ListView(controller: scroll,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: defaultExercises
+                  .where((e) => selected == null || e.muscleGroup == selected)
+                  // Wyklucz ćwiczenie które zamieniamy
+                  .where((e) => replaceIndex == null ||
+                      e.id != _workout.exercises[replaceIndex].exerciseId)
+                  .map((e) => ListTile(
+                title: Text(e.name),
+                subtitle: Text(e.muscleGroup.displayName,
+                    style: const TextStyle(color: AppTheme.accent, fontSize: 12)),
+                trailing: Icon(
+                  replaceIndex != null ? Icons.swap_horiz : Icons.add_circle,
+                  color: AppTheme.accent,
                 ),
-              ),
-            ],
-          ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  setState(() {
+                    if (replaceIndex != null) {
+                      // Zamień ćwiczenie – nowe NIE jest originalne z planu
+                      // (planExerciseId = null) → nie będzie zapamiętane
+                      final old = _workout.exercises[replaceIndex];
+                      _workout.exercises[replaceIndex] = WorkoutSet(
+                        exerciseId: e.id,
+                        exerciseName: e.name,
+                        planExerciseId: null, // zamienione → nie zapamiętuj
+                        entries: [
+                          // Przepisz liczbę serii z zastępowanego ćwiczenia
+                          for (final s in old.entries)
+                            SetEntry(reps: s.reps, weight: 0), // ciężar zresetuj
+                        ],
+                      );
+                    } else {
+                      _workout.exercises.add(WorkoutSet(
+                        exerciseId: e.id,
+                        exerciseName: e.name,
+                      ));
+                    }
+                  });
+                },
+              )).toList(),
+            )),
+          ]),
         ),
       ),
     );
@@ -111,6 +134,17 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   Future<void> _finishWorkout() async {
     _timer?.cancel();
     _workout.durationMinutes = (_seconds / 60).round();
+
+    // Zapisz pamięć ciężarów dla ćwiczeń z planu
+    final planId = widget.planId;
+    if (planId != null) {
+      for (final ex in _workout.exercises) {
+        if (ex.isOriginalPlanExercise) {
+          await PlanService.instance.saveMemory(planId, ex.exerciseId, ex.entries);
+        }
+      }
+    }
+
     await WorkoutService.instance.addWorkout(_workout);
     if (!mounted) return;
     // ignore: use_build_context_synchronously
@@ -136,61 +170,289 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                   const Icon(Icons.timer, color: AppTheme.accent, size: 16),
                   const SizedBox(width: 4),
                   Text(_timeLabel, style: const TextStyle(
-                    color: AppTheme.accent, fontWeight: FontWeight.bold)),
+                      color: AppTheme.accent, fontWeight: FontWeight.bold)),
                 ]),
               ),
             ),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: _workout.exercises.isEmpty
-                ? _EmptyExercises(onAdd: _pickExercise)
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _workout.exercises.length,
-                    itemBuilder: (ctx, i) => _ExerciseTile(
-                      workoutSet: _workout.exercises[i],
-                      index: i,
-                      onDelete: () => setState(() => _workout.exercises.removeAt(i)),
-                      onChanged: () => setState(() {}),
-                    ),
+      body: Column(children: [
+        Expanded(
+          child: _workout.exercises.isEmpty
+              ? _EmptyExercises(onAdd: () => _pickExercise())
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  itemCount: _workout.exercises.length,
+                  itemBuilder: (ctx, i) => _ExerciseCard(
+                    workoutSet: _workout.exercises[i],
+                    onDelete: () => setState(() => _workout.exercises.removeAt(i)),
+                    onChanged: () => setState(() {}),
+                    onSwap: () => _pickExercise(replaceIndex: i),
                   ),
+                ),
+        ),
+        // ── Dolny pasek ─────────────────────────────
+        SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _pickExercise(),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Dodaj ćwiczenie'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppTheme.accent,
+                    side: const BorderSide(color: AppTheme.accent),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: _workout.exercises.isEmpty ? null : _finishWorkout,
+                  icon: const Icon(Icons.check),
+                  label: const Text('Zakończ'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    disabledBackgroundColor: Colors.white10,
+                  ),
+                ),
+              ),
+            ]),
           ),
-          // ── Dolny pasek ─────────────────────────────
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickExercise,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Dodaj ćwiczenie'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.accent,
-                      side: const BorderSide(color: AppTheme.accent),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: _workout.exercises.isEmpty ? null : _finishWorkout,
-                    icon: const Icon(Icons.check),
-                    label: const Text('Zakończ'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      disabledBackgroundColor: Colors.white10,
-                    ),
-                  ),
-                ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Kafelek ćwiczenia z listą serii
+// ═══════════════════════════════════════════════════════════════
+
+class _ExerciseCard extends StatelessWidget {
+  final WorkoutSet workoutSet;
+  final VoidCallback onDelete;
+  final VoidCallback onChanged;
+  final VoidCallback onSwap;
+  const _ExerciseCard({
+    required this.workoutSet,
+    required this.onDelete,
+    required this.onChanged,
+    required this.onSwap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // ── Nagłówek ćwiczenia ──────────────────────
+          Row(children: [
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(
+                color: AppTheme.accent.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.fitness_center, color: AppTheme.accent, size: 18),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(workoutSet.exerciseName,
+                    style: Theme.of(context).textTheme.titleMedium),
+                if (workoutSet.isOriginalPlanExercise)
+                  const Text('z planu',
+                      style: TextStyle(color: AppTheme.textSecond, fontSize: 11)),
               ]),
             ),
+            // Zamień ćwiczenie
+            IconButton(
+              icon: const Icon(Icons.swap_horiz, color: AppTheme.accent, size: 20),
+              tooltip: 'Zamień ćwiczenie',
+              onPressed: onSwap,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+            const SizedBox(width: 8),
+            // Usuń ćwiczenie
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: AppTheme.textSecond, size: 20),
+              onPressed: onDelete,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+          ]),
+          const SizedBox(height: 12),
+
+          // ── Serie ────────────────────────────────────
+          ...workoutSet.entries.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final setEntry = entry.value;
+            return _SetRow(
+              seriesNumber: idx + 1,
+              entry: setEntry,
+              onDelete: workoutSet.entries.length > 1
+                  ? () {
+                      workoutSet.entries.removeAt(idx);
+                      onChanged();
+                    }
+                  : null,
+              onChanged: (updated) {
+                workoutSet.entries[idx] = updated;
+                onChanged();
+              },
+            );
+          }),
+
+          // ── Przycisk dodaj serię ─────────────────────
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: () {
+              final last = workoutSet.entries.isNotEmpty
+                  ? workoutSet.entries.last
+                  : SetEntry();
+              workoutSet.entries.add(SetEntry(
+                reps: last.reps,
+                weight: last.weight,
+                difficulty: last.difficulty,
+              ));
+              onChanged();
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: BoxDecoration(
+                color: AppTheme.accent.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppTheme.accent.withValues(alpha: 0.25)),
+              ),
+              child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Icon(Icons.add, color: AppTheme.accent, size: 16),
+                SizedBox(width: 6),
+                Text('Dodaj serię', style: TextStyle(color: AppTheme.accent, fontSize: 13)),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Wiersz pojedynczej serii
+// ═══════════════════════════════════════════════════════════════
+
+class _SetRow extends StatelessWidget {
+  final int seriesNumber;
+  final SetEntry entry;
+  final VoidCallback? onDelete;
+  final ValueChanged<SetEntry> onChanged;
+
+  const _SetRow({
+    required this.seriesNumber,
+    required this.entry,
+    required this.onDelete,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Row(children: [
+        // Numer serii
+        SizedBox(
+          width: 28,
+          child: Text(
+            '$seriesNumber',
+            style: const TextStyle(
+              color: AppTheme.accent,
+              fontWeight: FontWeight.bold,
+              fontSize: 15,
+            ),
+          ),
+        ),
+        // Powtórzenia
+        _EditableValue(
+          label: 'powt.',
+          value: '${entry.reps}',
+          onTap: () async {
+            final result = await _showNumberDialog(
+              context, 'Powtórzenia', entry.reps.toDouble(), false);
+            if (result != null) onChanged(entry.copyWith(reps: result.toInt()));
+          },
+        ),
+        const SizedBox(width: 8),
+        // Ciężar
+        _EditableValue(
+          label: 'kg',
+          value: entry.weight == 0
+              ? '–'
+              : (entry.weight == entry.weight.roundToDouble()
+                  ? '${entry.weight.toInt()}'
+                  : '${entry.weight}'),
+          onTap: () async {
+            final result = await _showNumberDialog(
+              context, 'Ciężar (kg)', entry.weight, true);
+            if (result != null) onChanged(entry.copyWith(weight: result));
+          },
+          accent: true,
+        ),
+        const SizedBox(width: 8),
+        // Trudność
+        Expanded(
+          child: _DifficultyPicker(
+            value: entry.difficulty,
+            onChanged: (d) => onChanged(entry.copyWith(difficulty: d)),
+          ),
+        ),
+        // Usuń serię
+        if (onDelete != null) ...[
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: onDelete,
+            child: const Icon(Icons.close, size: 16, color: AppTheme.textSecond),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  Future<double?> _showNumberDialog(
+      BuildContext context, String title, double current, bool decimal) async {
+    final ctrl = TextEditingController(
+      text: current == 0 ? '' : (decimal ? current.toString() : current.toInt().toString()),
+    );
+    return showDialog<double>(
+      context: context,
+      builder: (dlgCtx) => AlertDialog(
+        backgroundColor: AppTheme.bgCard,
+        title: Text(title),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.numberWithOptions(decimal: decimal),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Anuluj')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dlgCtx, double.tryParse(ctrl.text) ?? current),
+            child: const Text('OK'),
           ),
         ],
       ),
@@ -198,7 +460,77 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   }
 }
 
-// ── Pomocnicze widgety ───────────────────────────────────
+// ══ Edytowalna wartość ════════════════════════════════════════
+class _EditableValue extends StatelessWidget {
+  final String label, value;
+  final VoidCallback onTap;
+  final bool accent;
+  const _EditableValue({required this.label, required this.value, required this.onTap, this.accent = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: accent
+              ? AppTheme.accent.withValues(alpha: 0.1)
+              : Colors.white.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(value, style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 15,
+            color: accent ? AppTheme.accent : AppTheme.textPrimary,
+          )),
+          Text(label, style: const TextStyle(color: AppTheme.textSecond, fontSize: 10)),
+        ]),
+      ),
+    );
+  }
+}
+
+// ══ Trudność – skala 1–5 ════════════════════════════════════════
+class _DifficultyPicker extends StatelessWidget {
+  final int value; // 1–5
+  final ValueChanged<int> onChanged;
+  const _DifficultyPicker({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: List.generate(5, (i) {
+        final level = i + 1;
+        final filled = level <= value;
+        return GestureDetector(
+          onTap: () => onChanged(level),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: 16, height: 16,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: filled ? _diffColor(value) : Colors.white12,
+              ),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Color _diffColor(int v) {
+    if (v <= 2) return const Color(0xFF4CAF50);
+    if (v == 3) return const Color(0xFFFF9800);
+    return AppTheme.accent;
+  }
+}
+
+// ══ Pomocnicze ═════════════════════════════════════════════════
 
 class _FChip extends StatelessWidget {
   final String label;
@@ -217,8 +549,7 @@ class _FChip extends StatelessWidget {
         color: selected ? AppTheme.accent : Colors.white10,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(label,
-        style: TextStyle(
+      child: Text(label, style: TextStyle(
           color: selected ? Colors.white : AppTheme.textSecond,
           fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
           fontSize: 13)),
@@ -237,142 +568,10 @@ class _EmptyExercises extends StatelessWidget {
       const SizedBox(height: 12),
       Text('Brak ćwiczeń', style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 8),
-      Text('Dodaj pierwsze ćwiczenie do treningu', style: Theme.of(context).textTheme.bodyMedium),
+      Text('Dodaj pierwsze ćwiczenie do treningu',
+          style: Theme.of(context).textTheme.bodyMedium),
       const SizedBox(height: 20),
       ElevatedButton.icon(onPressed: onAdd, icon: const Icon(Icons.add), label: const Text('Dodaj ćwiczenie')),
     ]),
   );
-}
-
-class _ExerciseTile extends StatelessWidget {
-  final WorkoutSet workoutSet;
-  final int index;
-  final VoidCallback onDelete;
-  final VoidCallback onChanged;
-  const _ExerciseTile({required this.workoutSet, required this.index,
-    required this.onDelete, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Expanded(
-              child: Text(workoutSet.exerciseName,
-                  style: Theme.of(context).textTheme.titleMedium),
-            ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: AppTheme.textSecond, size: 20),
-              onPressed: onDelete,
-              padding: EdgeInsets.zero,
-            ),
-          ]),
-          const SizedBox(height: 12),
-          // Serie/powt/ciężar
-          Row(children: [
-            _CounterField(label: 'Serie', value: workoutSet.sets,
-              onChanged: (v) { workoutSet.sets = v; onChanged(); }),
-            const SizedBox(width: 12),
-            _CounterField(label: 'Powt.', value: workoutSet.reps,
-              onChanged: (v) { workoutSet.reps = v; onChanged(); }),
-            const SizedBox(width: 12),
-            _WeightField(value: workoutSet.weight,
-              onChanged: (v) { workoutSet.weight = v; onChanged(); }),
-          ]),
-        ]),
-      ),
-    );
-  }
-}
-
-class _CounterField extends StatelessWidget {
-  final String label;
-  final int value;
-  final ValueChanged<int> onChanged;
-  const _CounterField({required this.label, required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(children: [
-          Text(label, style: const TextStyle(color: AppTheme.textSecond, fontSize: 11)),
-          const SizedBox(height: 6),
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            GestureDetector(
-              onTap: () { if (value > 1) onChanged(value - 1); },
-              child: const Icon(Icons.remove, color: AppTheme.accent, size: 18),
-            ),
-            const SizedBox(width: 8),
-            Text('$value', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => onChanged(value + 1),
-              child: const Icon(Icons.add, color: AppTheme.accent, size: 18),
-            ),
-          ]),
-        ]),
-      ),
-    );
-  }
-}
-
-class _WeightField extends StatelessWidget {
-  final double value;
-  final ValueChanged<double> onChanged;
-  const _WeightField({required this.value, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () async {
-          final ctrl = TextEditingController(text: value == 0 ? '' : value.toString());
-          final result = await showDialog<double>(
-            context: context,
-            builder: (dlgCtx) => AlertDialog(
-              backgroundColor: AppTheme.bgCard,
-              title: const Text('Ciężar (kg)'),
-              content: TextField(
-                controller: ctrl,
-                autofocus: true,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(hintText: '0.0', suffixText: 'kg'),
-              ),
-              actions: [
-                TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Anuluj')),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(dlgCtx, double.tryParse(ctrl.text) ?? value),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-          );
-          if (result != null) onChanged(result);
-        },
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppTheme.accent.withValues(alpha: 0.3)),
-          ),
-          child: Column(children: [
-            const Text('Ciężar', style: TextStyle(color: AppTheme.textSecond, fontSize: 11)),
-            const SizedBox(height: 6),
-            Text('${value == value.roundToDouble() ? value.toInt() : value} kg',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppTheme.accent)),
-          ]),
-        ),
-      ),
-    );
-  }
 }

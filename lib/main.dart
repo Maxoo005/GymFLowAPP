@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'theme/app_theme.dart';
 import 'services/workout_service.dart';
 import 'services/profile_service.dart';
+import 'services/plan_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/workout_screen.dart';
 import 'screens/exercises_screen.dart';
@@ -16,6 +17,7 @@ void main() async {
   await Future.wait([
     WorkoutService.instance.init(),
     ProfileService.instance.init(),
+    PlanService.instance.init(),
   ]);
 
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(

@@ -21,6 +21,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         title: const Text('Profil'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Ustawienia',
+            onPressed: _openSettings,
+          ),
           TextButton(
             onPressed: _editProfile,
             child: const Text('Edytuj', style: TextStyle(color: AppTheme.accent)),
@@ -94,6 +99,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // ── Edycja profilu ────────────────────────────────────
   Future<void> _editProfile() async {
     final profile = _ps.profile;
     final nameCtrl = TextEditingController(text: profile.name);
@@ -152,9 +158,205 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
+
+  // ── Ustawienia ────────────────────────────────────────
+  void _openSettings() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppTheme.bgCard,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => _SettingsSheet(onChanged: () => setState(() {})),
+    );
+  }
 }
 
-// ── Pomocnicze widgety ───────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+// Ustawienia
+// ═══════════════════════════════════════════════════════════════
+
+class _SettingsSheet extends StatefulWidget {
+  final VoidCallback onChanged;
+  const _SettingsSheet({required this.onChanged});
+
+  @override
+  State<_SettingsSheet> createState() => _SettingsSheetState();
+}
+
+class _SettingsSheetState extends State<_SettingsSheet> {
+  // Lokalne stany ustawień (tu jako demo – można podpiąć do serwisu)
+  bool _notificationsEnabled = true;
+  String _units = 'kg'; // 'kg' lub 'lbs'
+
+  static const _accentColors = [
+    Color(0xFFE94560), // domyślny czerwony
+    Color(0xFF6C63FF), // fioletowy
+    Color(0xFF00BCD4), // cyjan
+    Color(0xFF4CAF50), // zielony
+    Color(0xFFFF9800), // pomarańczowy
+    Color(0xFFE91E63), // różowy
+    Color(0xFF2196F3), // niebieski
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      maxChildSize: 0.92,
+      builder: (ctx, scroll) => ListView(
+        controller: scroll,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        children: [
+          const SizedBox(height: 12),
+          Center(child: Container(
+            width: 40, height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+          )),
+          const SizedBox(height: 20),
+          Text('Ustawienia', style: Theme.of(ctx).textTheme.titleLarge),
+          const SizedBox(height: 24),
+
+          // ── Kolor akcentu ─────────────────────────────
+          _SettingsSection(
+            icon: Icons.color_lens_outlined,
+            title: 'Kolor akcentu',
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Row(
+                children: _accentColors.map((c) => GestureDetector(
+                  onTap: () {
+                    // Tutaj można podpiąć zmianę motywu przez InheritedWidget / provider
+                    // Na razie demo wizualne
+                    setState(() {});
+                    widget.onChanged();
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    margin: const EdgeInsets.only(right: 10),
+                    width: 32, height: 32,
+                    decoration: BoxDecoration(
+                      color: c,
+                      shape: BoxShape.circle,
+                      border: c.value == AppTheme.accent.value
+                          ? Border.all(color: Colors.white, width: 2.5)
+                          : null,
+                      boxShadow: c.value == AppTheme.accent.value
+                          ? [BoxShadow(color: c.withValues(alpha: 0.5), blurRadius: 8)]
+                          : null,
+                    ),
+                  ),
+                )).toList(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Jednostki ─────────────────────────────────
+          _SettingsSection(
+            icon: Icons.scale_outlined,
+            title: 'Jednostki masy',
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Row(children: [
+                _UnitChip(label: 'kg', selected: _units == 'kg',
+                    onTap: () => setState(() => _units = 'kg')),
+                const SizedBox(width: 10),
+                _UnitChip(label: 'lbs', selected: _units == 'lbs',
+                    onTap: () => setState(() => _units = 'lbs')),
+              ]),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Powiadomienia ─────────────────────────────
+          _SettingsSection(
+            icon: Icons.notifications_outlined,
+            title: 'Powiadomienia',
+            trailing: Switch(
+              value: _notificationsEnabled,
+              activeColor: AppTheme.accent,
+              onChanged: (v) => setState(() => _notificationsEnabled = v),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Motyw ─────────────────────────────────────
+          _SettingsSection(
+            icon: Icons.dark_mode_outlined,
+            title: 'Motyw',
+            subtitle: 'Ciemny (aktywny)',
+          ),
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+}
+
+class _SettingsSection extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Widget? child;
+  final Widget? trailing;
+  const _SettingsSection({required this.icon, required this.title, this.subtitle, this.child, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, color: AppTheme.accent, size: 20),
+          const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            if (subtitle != null)
+              Text(subtitle!, style: Theme.of(context).textTheme.bodyMedium),
+          ])),
+          if (trailing != null) trailing!,
+        ]),
+        if (child != null) child!,
+      ]),
+    );
+  }
+}
+
+class _UnitChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _UnitChip({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onTap: onTap,
+    child: AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+      decoration: BoxDecoration(
+        color: selected ? AppTheme.accent : Colors.white10,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(label, style: TextStyle(
+        color: selected ? Colors.white : AppTheme.textSecond,
+        fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+      )),
+    ),
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Pomocnicze widgety
+// ═══════════════════════════════════════════════════════════════
 
 class _SectionHeader extends StatelessWidget {
   final String title;
