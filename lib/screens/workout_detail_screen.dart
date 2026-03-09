@@ -40,9 +40,10 @@ class WorkoutDetailScreen extends StatelessWidget {
         Container(
           margin: const EdgeInsets.all(16),
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppTheme.bgCard,
+      decoration: BoxDecoration(
+            color: AppTheme.cardBg(context),
             borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.border(context)),
           ),
           child: Row(children: [
             _SummaryChip(
@@ -196,7 +197,7 @@ class _SetDetailRow extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 5),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
+        color: AppTheme.subtleOverlay(context),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(children: [
@@ -239,7 +240,7 @@ class _SetDetailRow extends StatelessWidget {
                 width: 12, height: 12,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: filled ? _diffColor(entry.difficulty) : Colors.white12,
+                  color: filled ? _diffColor(entry.difficulty) : AppTheme.border(context),
                 ),
               );
             }),

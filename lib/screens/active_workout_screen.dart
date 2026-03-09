@@ -6,6 +6,7 @@ import '../models/workout.dart';
 import '../services/workout_service.dart';
 import '../services/plan_service.dart';
 import '../services/notification_service.dart';
+import '../services/settings_service.dart';
 
 class ActiveWorkoutScreen extends StatefulWidget {
   final Workout workout;
@@ -52,7 +53,9 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
           _restSecondsRemaining--;
           if (_restSecondsRemaining == 0) {
             timer.cancel();
-            NotificationService.instance.showTimerFinishedNotification();
+            if (SettingsService.instance.notificationsEnabled) {
+              NotificationService.instance.showTimerFinishedNotification();
+            }
           }
         } else {
           timer.cancel();
@@ -87,7 +90,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppTheme.bgCard,
+      backgroundColor: AppTheme.modalBg(context),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
@@ -521,7 +524,7 @@ class _SetRow extends StatelessWidget {
     return showDialog<double>(
       context: context,
       builder: (dlgCtx) => AlertDialog(
-        backgroundColor: AppTheme.bgCard,
+        backgroundColor: AppTheme.modalBg(context),
         title: Text(title),
         content: TextField(
           controller: ctrl,

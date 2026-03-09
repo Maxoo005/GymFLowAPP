@@ -85,13 +85,18 @@ class WorkoutService {
         .fold(0.0, (sum, w) => sum + w.totalVolume);
   }
 
-  /// Liczba treningów per dzień tygodnia (0=pn, 6=nd) w ostatnich 7 dniach
+  /// Liczba treningów per dzień tygodnia (0=pn, 6=nd) w bieżącym tygodniu (pon–nd)
   List<int> get weeklyActivity {
+    final now = DateTime.now();
+    // Poniedziałek bieżącego tygodnia o godz. 00:00
+    final weekStart = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
     final counts = List<int>.filled(7, 0);
-    for (var w in recentWorkouts(7)) {
-      // weekday: 1=pn .. 7=nd → index 0..6
-      final idx = w.date.weekday - 1;
-      counts[idx]++;
+    for (var w in _workouts) {
+      if (!w.date.isBefore(weekStart)) {
+        final idx = w.date.weekday - 1; // 0=pn..6=nd
+        counts[idx]++;
+      }
     }
     return counts;
   }
@@ -106,5 +111,21 @@ class WorkoutService {
       }
     }
     return records;
+  }
+
+  /// Statystyki per partia ciała – liczba ćwiczeń i serii
+  /// Zwraca: { 'Klatka piersiowa': {'exercises': 5, 'sets': 15}, ... }
+  Map<String, Map<String, int>> get muscleGroupStats {
+    final Map<String, Map<String, int>> stats = {};
+    for (var w in _workouts) {
+      for (var ws in w.exercises) {
+        final groupName = ws.muscleGroupName;
+        if (groupName == null || groupName.isEmpty) continue;
+        final entry = stats.putIfAbsent(groupName, () => {'exercises': 0, 'sets': 0});
+        entry['exercises'] = (entry['exercises'] ?? 0) + 1;
+        entry['sets'] = (entry['sets'] ?? 0) + ws.sets;
+      }
+    }
+    return stats;
   }
 }
