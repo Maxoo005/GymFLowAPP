@@ -41,15 +41,15 @@ class _WorkoutScreenState extends State<WorkoutScreen>
         title: const Text('Treningi'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add, color: AppTheme.accent),
+            icon: Icon(Icons.add, color: Theme.of(context).colorScheme.primary),
             tooltip: 'Nowy trening',
             onPressed: _showStartOptions,
           ),
         ],
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: AppTheme.accent,
-          labelColor: AppTheme.accent,
+          indicatorColor: Theme.of(context).colorScheme.primary,
+          labelColor: Theme.of(context).colorScheme.primary,
           unselectedLabelColor: AppTheme.textSecond,
           tabs: const [
             Tab(text: 'Historia'),
@@ -95,7 +95,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Container(width: 40, height: 4,
-                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+                decoration: BoxDecoration(color: AppTheme.border(ctx), borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 20),
             Text('Nowy trening', style: Theme.of(ctx).textTheme.titleLarge),
             const SizedBox(height: 20),
@@ -175,7 +175,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
         builder: (_, scroll) => Column(children: [
           const SizedBox(height: 12),
           Container(width: 40, height: 4,
-              decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+              decoration: BoxDecoration(color: AppTheme.border(ctx), borderRadius: BorderRadius.circular(2))),
           const SizedBox(height: 16),
           Padding(padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Text('Wybierz plan', style: Theme.of(ctx).textTheme.titleLarge)),
@@ -312,10 +312,10 @@ class _WorkoutHistoryCard extends StatelessWidget {
               Container(
                 width: 48, height: 48,
                 decoration: BoxDecoration(
-                  color: AppTheme.accent.withValues(alpha: 0.15),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.fitness_center, color: AppTheme.accent),
+                child: Icon(Icons.fitness_center, color: Theme.of(context).colorScheme.primary),
               ),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -328,10 +328,10 @@ class _WorkoutHistoryCard extends StatelessWidget {
                 if (workout.totalVolume > 0) ...[
                   const SizedBox(height: 2),
                   Text('Objętość: ${workout.totalVolume.toStringAsFixed(0)} kg',
-                      style: const TextStyle(color: AppTheme.accent, fontSize: 12)),
+                      style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 12)),
                 ],
               ])),
-              const Icon(Icons.chevron_right, color: AppTheme.accent),
+              Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.primary),
             ]),
           ),
         ),
@@ -376,8 +376,8 @@ class _PlansTab extends StatelessWidget {
                     icon: const Icon(Icons.add),
                     label: const Text('Utwórz nowy plan'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppTheme.accent,
-                      side: const BorderSide(color: AppTheme.accent),
+                     foregroundColor: Theme.of(context).colorScheme.primary,
+                      side: BorderSide(color: Theme.of(context).colorScheme.primary),
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
@@ -424,10 +424,10 @@ class _PlanCard extends StatelessWidget {
               Container(
                 width: 44, height: 44,
                 decoration: BoxDecoration(
-                  color: AppTheme.accent.withValues(alpha: 0.15),
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.calendar_today, color: AppTheme.accent, size: 22),
+                child: Icon(Icons.calendar_today, color: Theme.of(context).colorScheme.primary, size: 22),
               ),
               const SizedBox(width: 14),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -457,11 +457,11 @@ class _PlanCard extends StatelessWidget {
               Wrap(spacing: 6, runSpacing: 4, children: plan.exercises.map((e) => Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.06),
+                 color: AppTheme.subtleOverlay(context),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(e.exerciseName,
-                    style: const TextStyle(color: AppTheme.textSecond, fontSize: 12)),
+                    style: TextStyle(color: AppTheme.textSec(context), fontSize: 12)),
               )).toList()),
             ],
           ]),
@@ -516,7 +516,7 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
           builder: (_, scroll) => Column(children: [
             const SizedBox(height: 12),
             Container(width: 40, height: 4,
-                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+                decoration: BoxDecoration(color: AppTheme.border(context), borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 16),
             Padding(padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Text('Wybierz ćwiczenie', style: Theme.of(ctx).textTheme.titleLarge)),
@@ -540,8 +540,8 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
                   .map((e) => ListTile(
                 title: Text(e.name),
                 subtitle: Text(e.muscleGroup.displayName,
-                    style: const TextStyle(color: AppTheme.accent, fontSize: 12)),
-                trailing: const Icon(Icons.add_circle, color: AppTheme.accent),
+                    style: TextStyle(color: Theme.of(ctx).colorScheme.primary, fontSize: 12)),
+                trailing: Icon(Icons.add_circle, color: Theme.of(ctx).colorScheme.primary),
                 onTap: () {
                   Navigator.pop(ctx);
                   setState(() {
@@ -598,7 +598,7 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
         actions: [
           TextButton(
             onPressed: _savePlan,
-            child: const Text('Zapisz', style: TextStyle(color: AppTheme.accent)),
+            child: Text('Zapisz', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
           ),
         ],
       ),
@@ -657,7 +657,7 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
                               const Text('Przerwa po serii:', style: TextStyle(color: AppTheme.textSecond, fontSize: 13)),
                               const Spacer(),
                               IconButton(
-                                icon: const Icon(Icons.remove_circle_outline, color: AppTheme.accent),
+                                icon: Icon(Icons.remove_circle_outline, color: Theme.of(context).colorScheme.primary),
                                 onPressed: () {
                                   if (ex.restSeconds > 10) {
                                     setState(() => ex.restSeconds -= 10);
@@ -675,7 +675,7 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
                                 ),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.add_circle_outline, color: AppTheme.accent),
+                                icon: Icon(Icons.add_circle_outline, color: Theme.of(context).colorScheme.primary),
                                 onPressed: () => setState(() => ex.restSeconds += 10),
                               ),
                             ]),
@@ -694,8 +694,8 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
               icon: const Icon(Icons.add),
               label: const Text('Dodaj ćwiczenie'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: AppTheme.accent,
-                side: const BorderSide(color: AppTheme.accent),
+                foregroundColor: Theme.of(context).colorScheme.primary,
+                side: BorderSide(color: Theme.of(context).colorScheme.primary),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 minimumSize: const Size.fromHeight(0),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -730,10 +730,10 @@ class _OptionTile extends StatelessWidget {
         Container(
           width: 44, height: 44,
           decoration: BoxDecoration(
-            color: AppTheme.accent.withValues(alpha: 0.15),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, color: AppTheme.accent),
+          child: Icon(icon, color: Theme.of(context).colorScheme.primary),
         ),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -761,7 +761,7 @@ class _FChip extends StatelessWidget {
       margin: const EdgeInsets.only(right: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: selected ? AppTheme.accent : Colors.white10,
+        color: selected ? Theme.of(context).colorScheme.primary : AppTheme.cardBg(context),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(label, style: TextStyle(
