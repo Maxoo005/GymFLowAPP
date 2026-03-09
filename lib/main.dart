@@ -4,6 +4,8 @@ import 'theme/app_theme.dart';
 import 'services/workout_service.dart';
 import 'services/profile_service.dart';
 import 'services/plan_service.dart';
+import 'services/exercise_database_service.dart';
+import 'services/settings_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/workout_screen.dart';
 import 'screens/exercises_screen.dart';
@@ -18,6 +20,8 @@ void main() async {
     WorkoutService.instance.init(),
     ProfileService.instance.init(),
     PlanService.instance.init(),
+    ExerciseDatabaseService.instance.init(),
+    SettingsService.instance.init(),
   ]);
 
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
@@ -25,19 +29,28 @@ void main() async {
     statusBarIconBrightness: Brightness.light,
   ));
 
-  runApp(const GymFlowApp());
+  runApp(const GymLoomApp());
 }
 
-class GymFlowApp extends StatelessWidget {
-  const GymFlowApp({super.key});
+class GymLoomApp extends StatelessWidget {
+  const GymLoomApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'GymFlow',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
-      home: const MainShell(),
+    // ListenableBuilder przebudowuje app przy każdej zmianie SettingsService
+    return ListenableBuilder(
+      listenable: SettingsService.instance,
+      builder: (context, _) {
+        final settings = SettingsService.instance;
+        return MaterialApp(
+          title: 'GymLoom',
+          debugShowCheckedModeBanner: false,
+          themeMode: settings.themeMode,
+          theme: AppTheme.lightTheme(accentColor: settings.accentColor),
+          darkTheme: AppTheme.darkTheme(accentColor: settings.accentColor),
+          home: const MainShell(),
+        );
+      },
     );
   }
 }

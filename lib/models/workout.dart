@@ -48,12 +48,16 @@ class WorkoutSet {
 
   int restSeconds; // Nowe pole: czas przerwy po serii (w sekundach)
 
+  /// Partia ciała – opcjonalne, zapisywane przy tworzeniu z bazy ćwiczeń
+  final String? muscleGroupName;
+
   WorkoutSet({
     required this.exerciseId,
     required this.exerciseName,
     List<SetEntry>? entries,
     this.planExerciseId,
     this.restSeconds = 60,
+    this.muscleGroupName,
   }) : entries = entries ?? [SetEntry(), SetEntry()]; // domyślnie 2 serie
 
   /// Czy to oryginalne ćwiczenie z planu (nie zamienione)
@@ -71,6 +75,7 @@ class WorkoutSet {
     'entries': entries.map((e) => e.toJson()).toList(),
     if (planExerciseId != null) 'planExerciseId': planExerciseId,
     'restSeconds': restSeconds,
+    if (muscleGroupName != null) 'muscleGroupName': muscleGroupName,
   };
 
   factory WorkoutSet.fromJson(Map<String, dynamic> json) {
@@ -82,6 +87,7 @@ class WorkoutSet {
         entries: (json['entries'] as List).map((e) => SetEntry.fromJson(e)).toList(),
         planExerciseId: json['planExerciseId'],
         restSeconds: json['restSeconds'] ?? 60,
+        muscleGroupName: json['muscleGroupName'] as String?,
       );
     } else {
       // Stary format – konwertuj
@@ -181,8 +187,9 @@ class WorkoutPlan {
         return WorkoutSet(
           exerciseId: e.exerciseId,
           exerciseName: e.exerciseName,
-          planExerciseId: e.exerciseId, // oznaczymy jako "oryginalne"
+          planExerciseId: e.exerciseId,
           restSeconds: e.restSeconds,
+          muscleGroupName: e.muscleGroupName,
           entries: remembered != null
               ? remembered.map((s) => SetEntry(reps: s.reps, weight: s.weight, difficulty: s.difficulty)).toList()
               : [SetEntry(), SetEntry()],
@@ -196,7 +203,8 @@ class PlanExercise {
   final String exerciseName;
   int defaultSets;
   int defaultReps;
-  int restSeconds; // Nowe pole: czas przerwy po serii (w sekundach)
+  int restSeconds;
+  final String? muscleGroupName;
 
   PlanExercise({
     required this.exerciseId,
@@ -204,6 +212,7 @@ class PlanExercise {
     this.defaultSets = 3,
     this.defaultReps = 10,
     this.restSeconds = 60,
+    this.muscleGroupName,
   });
 
   Map<String, dynamic> toJson() => {
@@ -212,6 +221,7 @@ class PlanExercise {
     'defaultSets': defaultSets,
     'defaultReps': defaultReps,
     'restSeconds': restSeconds,
+    if (muscleGroupName != null) 'muscleGroupName': muscleGroupName,
   };
 
   factory PlanExercise.fromJson(Map<String, dynamic> json) => PlanExercise(
@@ -220,5 +230,6 @@ class PlanExercise {
     defaultSets: json['defaultSets'] ?? 3,
     defaultReps: json['defaultReps'] ?? 10,
     restSeconds: json['restSeconds'] ?? 60,
+    muscleGroupName: json['muscleGroupName'] as String?,
   );
 }

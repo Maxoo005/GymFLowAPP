@@ -4,6 +4,7 @@ import '../models/workout.dart';
 import '../models/exercise.dart';
 import '../services/workout_service.dart';
 import '../services/plan_service.dart';
+import '../services/exercise_database_service.dart';
 import 'active_workout_screen.dart';
 import 'workout_detail_screen.dart';
 
@@ -86,7 +87,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
   void _showStartOptions() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppTheme.bgCard,
+      backgroundColor: AppTheme.modalBg(context),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => SafeArea(
@@ -122,7 +123,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppTheme.bgCard,
+      backgroundColor: AppTheme.modalBg(context),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => Padding(
@@ -165,7 +166,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppTheme.bgCard,
+      backgroundColor: AppTheme.modalBg(context),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => DraggableScrollableSheet(
@@ -496,12 +497,15 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
     _exercises = plan != null ? List.of(plan.exercises) : [];
   }
 
-  void _addExercise() {
+  Future<void> _addExercise() async {
+    // Załaduj ćwiczenia z SQLite
+    final allExercises = await ExerciseDatabaseService.instance.getAllExercises();
+    if (!mounted) return;
     MuscleGroup? selected;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppTheme.bgCard,
+      backgroundColor: AppTheme.modalBg(context),
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
@@ -528,9 +532,10 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            Expanded(child: ListView(controller: scroll,
+            Expanded(child: ListView(
+              controller: scroll,
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: defaultExercises
+              children: allExercises
                   .where((e) => selected == null || e.muscleGroup == selected)
                   .map((e) => ListTile(
                 title: Text(e.name),
@@ -540,7 +545,11 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
                 onTap: () {
                   Navigator.pop(ctx);
                   setState(() {
-                    _exercises.add(PlanExercise(exerciseId: e.id, exerciseName: e.name));
+                    _exercises.add(PlanExercise(
+                      exerciseId: e.id,
+                      exerciseName: e.name,
+                      muscleGroupName: e.muscleGroup.displayName,
+                    ));
                   });
                 },
               )).toList(),
