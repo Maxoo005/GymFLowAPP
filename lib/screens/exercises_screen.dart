@@ -191,7 +191,7 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
       appBar: AppBar(title: const Text('Baza ćwiczeń')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddEditDialog(),
-        backgroundColor: AppTheme.accent,
+        backgroundColor: Theme.of(context).colorScheme.primary,
         icon: const Icon(Icons.add),
         label: const Text('Dodaj ćwiczenie'),
       ),
@@ -314,14 +314,14 @@ class _ExerciseItem extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: AppTheme.accent.withValues(alpha: 0.12),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: const Icon(Icons.fitness_center, color: AppTheme.accent, size: 20),
+          child: Icon(Icons.fitness_center, color: Theme.of(context).colorScheme.primary, size: 20),
         ),
         title: Text(exercise.name, style: Theme.of(context).textTheme.titleMedium),
         subtitle: Text(exercise.muscleGroup.displayName,
-            style: const TextStyle(color: AppTheme.accent, fontSize: 12)),
+            style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 12)),
         trailing: PopupMenuButton<String>(
           icon: const Icon(Icons.more_vert, color: AppTheme.textSecond),
           color: AppTheme.modalBg(context),
@@ -357,7 +357,7 @@ class _ExerciseItem extends StatelessWidget {
             Chip(
               label: Text(exercise.muscleGroup.displayName,
                   style: const TextStyle(color: Colors.white, fontSize: 12)),
-              backgroundColor: AppTheme.accent,
+              backgroundColor: Theme.of(context).colorScheme.primary,
             ),
             const SizedBox(height: 12),
             Text(

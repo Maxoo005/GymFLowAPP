@@ -6,6 +6,7 @@ import 'services/profile_service.dart';
 import 'services/plan_service.dart';
 import 'services/exercise_database_service.dart';
 import 'services/settings_service.dart';
+import 'services/nutrition_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/workout_screen.dart';
 import 'screens/exercises_screen.dart';
@@ -22,6 +23,7 @@ void main() async {
     PlanService.instance.init(),
     ExerciseDatabaseService.instance.init(),
     SettingsService.instance.init(),
+    NutritionService.instance.init(),
   ]);
 
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(

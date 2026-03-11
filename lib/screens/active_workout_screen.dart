@@ -189,6 +189,32 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     Navigator.pop(context, true);
   }
 
+  /// Toggle serii łączonej między ćwiczeniem [i] a [i+1].
+  void _toggleSuperset(int i) {
+    if (i >= _workout.exercises.length - 1) return;
+    final current = _workout.exercises[i];
+    final next = _workout.exercises[i + 1];
+    final alreadyLinked = current.supersetGroupId != null &&
+        current.supersetGroupId == next.supersetGroupId;
+
+    if (alreadyLinked) {
+      // Rozłącz
+      final groupId = current.supersetGroupId;
+      for (final ex in _workout.exercises) {
+        if (ex.supersetGroupId == groupId) {
+          ex.supersetGroupId = null;
+        }
+      }
+    } else {
+      // Połącz
+      final groupId = current.supersetGroupId ??
+          next.supersetGroupId ??
+          generateSupersetGroupId();
+      current.supersetGroupId = groupId;
+      next.supersetGroupId = groupId;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -219,16 +245,57 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
         Expanded(
           child: _workout.exercises.isEmpty
               ? _EmptyExercises(onAdd: () => _pickExercise())
-              : ListView.builder(
+              : ReorderableListView.builder(
+                  buildDefaultDragHandles: false,
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  onReorder: (oldIndex, newIndex) {
+                    setState(() {
+                      if (oldIndex < newIndex) {
+                        newIndex -= 1;
+                      }
+                      final item = _workout.exercises.removeAt(oldIndex);
+                      _workout.exercises.insert(newIndex, item);
+                    });
+                  },
                   itemCount: _workout.exercises.length,
-                  itemBuilder: (ctx, i) => _ExerciseCard(
-                    workoutSet: _workout.exercises[i],
-                    onDelete: () => setState(() => _workout.exercises.removeAt(i)),
-                    onChanged: () => setState(() {}),
-                    onSwap: () => _pickExercise(replaceIndex: i),
-                    onStartRest: _startRestTimer,
-                  ),
+                  itemBuilder: (ctx, i) {
+                    final ws = _workout.exercises[i];
+                    final isLast = i == _workout.exercises.length - 1;
+                    final linkedWithNext = !isLast &&
+                        ws.supersetGroupId != null &&
+                        _workout.exercises[i + 1].supersetGroupId == ws.supersetGroupId;
+                    return Container(
+                      key: ValueKey('${ws.exerciseId}_$i'),
+                      child: Column(
+                        children: [
+                          _ExerciseCard(
+                            index: i,
+                            workoutSet: ws,
+                            onDelete: () => setState(() => _workout.exercises.removeAt(i)),
+                            onChanged: () => setState(() {}),
+                            onSwap: () => _pickExercise(replaceIndex: i),
+                            onStartRest: _startRestTimer,
+                            canToggleSuperset: !isLast,
+                            isLinkedWithNext: linkedWithNext,
+                            onToggleSuperset: () => setState(() => _toggleSuperset(i)),
+                          ),
+                          if (linkedWithNext)
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 28),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 2,
+                                    height: 12,
+                                    color: AppTheme.accent.withValues(alpha: 0.5),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
         ),
         // ── Pasek stopera przerwy ────────────────────────
@@ -298,28 +365,53 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
 // ═══════════════════════════════════════════════════════════════
 
 class _ExerciseCard extends StatelessWidget {
+  final int index;
   final WorkoutSet workoutSet;
   final VoidCallback onDelete;
   final VoidCallback onChanged;
   final VoidCallback onSwap;
   final ValueChanged<int> onStartRest;
+  final bool canToggleSuperset;
+  final bool isLinkedWithNext;
+  final VoidCallback onToggleSuperset;
+
   const _ExerciseCard({
+    required this.index,
     required this.workoutSet,
     required this.onDelete,
     required this.onChanged,
     required this.onSwap,
     required this.onStartRest,
+    this.canToggleSuperset = false,
+    this.isLinkedWithNext = false,
+    required this.onToggleSuperset,
   });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: EdgeInsets.only(bottom: isLinkedWithNext ? 0 : 14),
+      shape: workoutSet.isInSuperset
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(
+                color: AppTheme.accent.withValues(alpha: 0.6),
+                width: 1.5,
+              ),
+            )
+          : null,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // ── Nagłówek ćwiczenia ──────────────────────
           Row(children: [
+            ReorderableDragStartListener(
+              index: index,
+              child: const Padding(
+                padding: EdgeInsets.only(right: 6, top: 4, bottom: 4),
+                child: Icon(Icons.drag_indicator, color: AppTheme.textSecond, size: 24),
+              ),
+            ),
             Container(
               width: 36, height: 36,
               decoration: BoxDecoration(
@@ -331,8 +423,29 @@ class _ExerciseCard extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(workoutSet.exerciseName,
-                    style: Theme.of(context).textTheme.titleMedium),
+                Row(
+                  children: [
+                    if (workoutSet.isInSuperset)
+                      Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accent.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text('🔗 Łączona',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: AppTheme.accent,
+                              fontWeight: FontWeight.w600,
+                            )),
+                      ),
+                    Expanded(
+                      child: Text(workoutSet.exerciseName,
+                          style: Theme.of(context).textTheme.titleMedium),
+                    ),
+                  ],
+                ),
                 if (workoutSet.isOriginalPlanExercise)
                   const Text('z planu',
                       style: TextStyle(color: AppTheme.textSecond, fontSize: 11)),
@@ -383,32 +496,73 @@ class _ExerciseCard extends StatelessWidget {
 
           // ── Przycisk dodaj serię ─────────────────────
           const SizedBox(height: 6),
-          GestureDetector(
-            onTap: () {
-              final last = workoutSet.entries.isNotEmpty
-                  ? workoutSet.entries.last
-                  : SetEntry();
-              workoutSet.entries.add(SetEntry(
-                reps: last.reps,
-                weight: last.weight,
-                difficulty: last.difficulty,
-              ));
-              onChanged();
-            },
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.accent.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppTheme.accent.withValues(alpha: 0.25)),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    final last = workoutSet.entries.isNotEmpty
+                        ? workoutSet.entries.last
+                        : SetEntry();
+                    workoutSet.entries.add(SetEntry(
+                      reps: last.reps,
+                      weight: last.weight,
+                      difficulty: last.difficulty,
+                    ));
+                    onChanged();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accent.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.accent.withValues(alpha: 0.25)),
+                    ),
+                    child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      Icon(Icons.add, color: AppTheme.accent, size: 16),
+                      SizedBox(width: 6),
+                      Text('Dodaj serię', style: TextStyle(color: AppTheme.accent, fontSize: 13)),
+                    ]),
+                  ),
+                ),
               ),
-              child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.add, color: AppTheme.accent, size: 16),
-                SizedBox(width: 6),
-                Text('Dodaj serię', style: TextStyle(color: AppTheme.accent, fontSize: 13)),
-              ]),
-            ),
+              if (canToggleSuperset) ...[
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: onToggleSuperset,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isLinkedWithNext
+                          ? AppTheme.accent.withValues(alpha: 0.12)
+                          : Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isLinkedWithNext
+                            ? AppTheme.accent.withValues(alpha: 0.4)
+                            : Colors.white12,
+                      ),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(
+                        isLinkedWithNext ? Icons.link : Icons.link_off,
+                        color: isLinkedWithNext ? AppTheme.accent : AppTheme.textSecond,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isLinkedWithNext ? 'Połączone' : 'Połącz z nast.',
+                        style: TextStyle(
+                          color: isLinkedWithNext ? AppTheme.accent : AppTheme.textSecond,
+                          fontSize: 12,
+                          fontWeight: isLinkedWithNext ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+              ],
+            ],
           ),
         ]),
       ),
