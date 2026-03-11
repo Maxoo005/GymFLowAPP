@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../theme/app_theme.dart';
 import '../services/workout_service.dart';
+import '../widgets/share_cards.dart';
 
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
@@ -450,6 +451,28 @@ class _RecordTile extends StatelessWidget {
         Expanded(child: Text(name, style: Theme.of(context).textTheme.titleMedium)),
         Text('${weight == weight.roundToDouble() ? weight.toInt() : weight} kg',
             style: TextStyle(color: accent, fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: 'Udostępnij rekord',
+          child: IconButton(
+            icon: const Icon(Icons.ios_share, color: AppTheme.textSecond, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (_) => SharePreviewDialog(
+                  cardWidget: RecordShareCard(
+                    exerciseName: name,
+                    weight: weight,
+                    date: DateTime.now(), // Fallback na dzisiejszą datę
+                  ),
+                  shareFileName: 'rekord_${name.replaceAll(' ', '_')}',
+                ),
+              );
+            },
+          ),
+        ),
       ]),
     );
   }

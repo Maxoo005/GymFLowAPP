@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../models/nutrition_profile.dart';
+import '../models/nutrition_result.dart';
 import '../services/profile_service.dart';
 import '../services/settings_service.dart';
 import '../services/nutrition_service.dart';
@@ -595,19 +596,17 @@ class _NutritionCard extends StatelessWidget {
     // Liczymy tygodniową objętość (średnia z 4 tyg.)
     final weeklyVol = WorkoutService.instance.monthlyVolume / 4.0;
 
-    // Obliczenia
-    NutritionResult? result;
+    // Synchronizujemy dane profilu głównego → profil żywieniowy
+    // Silnik żywieniowy czyta wagę/wzrost/wiek/cel z NutritionProfile
     if (hasData) {
-      final goal = _mapGoal(profile.goal);
-      result = ns.calculate(
-        nutritionProfile: nutritionProfile,
-        weightKg: profile.weightKg!,
-        heightCm: profile.heightCm!,
-        age: profile.age!,
-        goal: goal,
-        weeklyVolumeKg: weeklyVol,
-      );
+      nutritionProfile.weightKg = profile.weightKg;
+      nutritionProfile.heightCm = profile.heightCm;
+      nutritionProfile.age      = profile.age;
+      nutritionProfile.goal     = _mapGoal(profile.goal);
     }
+
+    // Obliczenia – silnik pobiera dane bezpośrednio z ns.profile
+    final NutritionResult? result = hasData ? ns.calculate() : null;
 
     return Container(
       padding: const EdgeInsets.all(18),
@@ -675,7 +674,7 @@ class _NutritionCard extends StatelessWidget {
         else if (result != null) ...[
           // Duże liczby kalorii
           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Text('${result.calories}',
+            Text('${result.targetKcalRounded}',
                 style: TextStyle(
                   fontSize: 52,
                   fontWeight: FontWeight.bold,
@@ -691,7 +690,8 @@ class _NutritionCard extends StatelessWidget {
           ]),
           const SizedBox(height: 4),
           Center(child: Text(
-            'BMR: ${result.bmr.round()} kcal  •  TDEE: ${result.tdee.round()} kcal',
+            'BMR: ${result.bmr.round()} kcal  •  TDEE: ${result.effectiveTDEE.round()} kcal'
+            '${result.coldStartActive ? "  •  Tryb wstępny" : ""}',
             style: TextStyle(color: AppTheme.textSec(context), fontSize: 11),
           )),
           const SizedBox(height: 18),
@@ -699,22 +699,22 @@ class _NutritionCard extends StatelessWidget {
           // Makro paski
           _MacroBar(
             label: 'Białko',
-            grams: result.protein,
-            fraction: result.protein * 4 / result.calories,
+            grams: result.macros.proteinG.round(),
+            fraction: result.macros.proteinG * 4 / result.targetKcal,
             color: const Color(0xFF42A5F5),
           ),
           const SizedBox(height: 10),
           _MacroBar(
             label: 'Węglowodany',
-            grams: result.carbs,
-            fraction: result.carbs * 4 / result.calories,
+            grams: result.macros.carbsG.round(),
+            fraction: result.macros.carbsG * 4 / result.targetKcal,
             color: const Color(0xFFFFA726),
           ),
           const SizedBox(height: 10),
           _MacroBar(
             label: 'Tłuszcz',
-            grams: result.fat,
-            fraction: result.fat * 9 / result.calories,
+            grams: result.macros.fatG.round(),
+            fraction: result.macros.fatG * 9 / result.targetKcal,
             color: const Color(0xFFEF5350),
           ),
           const SizedBox(height: 14),
@@ -823,9 +823,14 @@ class _NutritionQuestionnaireSheet extends StatefulWidget {
 class _NutritionQuestionnaireSheetState
     extends State<_NutritionQuestionnaireSheet> {
   int _step = 0;
-  final _profile = NutritionProfile(
+  // Kopia aktualnego profilu żywieniowego do edycji
+  late final NutritionProfile _nutritionEdit = NutritionProfile(
     sex: NutritionService.instance.profile.sex,
     activityLevel: NutritionService.instance.profile.activityLevel,
+    weightKg: NutritionService.instance.profile.weightKg,
+    heightCm: NutritionService.instance.profile.heightCm,
+    age: NutritionService.instance.profile.age,
+    isGlp1Mode: NutritionService.instance.profile.isGlp1Mode,
   );
 
   static const _activities = [
@@ -930,17 +935,17 @@ class _NutritionQuestionnaireSheetState
         _SexTile(
           label: 'Mężczyzna',
           icon: Icons.male,
-          selected: _profile.sex == 'male',
+          selected: _nutritionEdit.sex == 'male',
           accent: accent,
-          onTap: () => setState(() => _profile.sex = 'male'),
+          onTap: () => setState(() => _nutritionEdit.sex = 'male'),
         ),
         const SizedBox(width: 14),
         _SexTile(
           label: 'Kobieta',
           icon: Icons.female,
-          selected: _profile.sex == 'female',
+          selected: _nutritionEdit.sex == 'female',
           accent: accent,
-          onTap: () => setState(() => _profile.sex = 'female'),
+          onTap: () => setState(() => _nutritionEdit.sex = 'female'),
         ),
       ]),
     ]);
@@ -958,9 +963,9 @@ class _NutritionQuestionnaireSheetState
           style: TextStyle(color: AppTheme.textSec(context), fontSize: 13)),
       const SizedBox(height: 20),
       ..._activities.map((a) {
-        final sel = _profile.activityLevel == a.$1;
+        final sel = _nutritionEdit.activityLevel == a.$1;
         return GestureDetector(
-          onTap: () => setState(() => _profile.activityLevel = a.$1),
+          onTap: () => setState(() => _nutritionEdit.activityLevel = a.$1),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             margin: const EdgeInsets.only(bottom: 10),
@@ -998,7 +1003,7 @@ class _NutritionQuestionnaireSheetState
   }
 
   Future<void> _save() async {
-    await NutritionService.instance.save(_profile);
+    await NutritionService.instance.saveProfile(_nutritionEdit);
     if (mounted) {
       Navigator.pop(context);
       widget.onSaved();

@@ -7,6 +7,7 @@ import '../services/plan_service.dart';
 import '../services/exercise_database_service.dart';
 import 'active_workout_screen.dart';
 import 'workout_detail_screen.dart';
+import '../widgets/share_cards.dart';
 
 class WorkoutScreen extends StatefulWidget {
   const WorkoutScreen({super.key});
@@ -429,12 +430,39 @@ class _PlansTab extends StatelessWidget {
             ElevatedButton.icon(onPressed: onAddPlan, icon: const Icon(Icons.add), label: const Text('Utwórz plan')),
           ]))
         : ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: plans.length + 1,
+            padding: const EdgeInsets.only(bottom: 16),
+            itemCount: plans.length + 2,
             itemBuilder: (ctx, i) {
-              if (i == plans.length) {
+              if (i == 0) {
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16, left: 16, bottom: 8),
+                      child: Row(
+                        children: [
+                          Text('Globalna objętość planów', style: Theme.of(context).textTheme.titleMedium),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.bgCard,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white10),
+                        ),
+                        child: _GlobalPlanVolumeChart(plans: plans),
+                      ),
+                    ),
+                    const Divider(height: 32, indent: 16, endIndent: 16),
+                  ],
+                );
+              }
+              if (i == plans.length + 1) {
                 return Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(top: 8, left: 16, right: 16),
                   child: OutlinedButton.icon(
                     onPressed: onAddPlan,
                     icon: const Icon(Icons.add),
@@ -448,11 +476,16 @@ class _PlansTab extends StatelessWidget {
                   ),
                 );
               }
-              return _PlanCard(
-                plan: plans[i],
-                onStart: () => onStartPlan(plans[i]),
-                onEdit: () => onEditPlan(plans[i]),
-                onDelete: () => onDeletePlan(plans[i].id),
+              
+              final plan = plans[i - 1];
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _PlanCard(
+                  plan: plan,
+                  onStart: () => onStartPlan(plan),
+                  onEdit: () => onEditPlan(plan),
+                  onDelete: () => onDeletePlan(plan.id),
+                ),
               );
             },
           );
@@ -519,6 +552,25 @@ class _PlanCardState extends State<_PlanCard> {
                     ],
                   ),
                 ])),
+                // Udostępnij
+                Tooltip(
+                  message: 'Udostępnij plan',
+                  child: IconButton(
+                    icon: const Icon(Icons.ios_share, color: AppTheme.textSecond, size: 20),
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (_) => SharePreviewDialog(
+                          cardWidget: PlanShareCard(plan: widget.plan),
+                          shareFileName: 'plan_${widget.plan.id}',
+                        ),
+                      );
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 // Edytuj
                 Tooltip(
                   message: 'Edytuj strukturę planu',
@@ -590,7 +642,7 @@ class _PlanVolumeChart extends StatelessWidget {
     for (final ex in plan.exercises) {
       final muscle = ex.muscleGroupName ?? 'Inne';
       stats.putIfAbsent(muscle, () => {'sets': 0, 'exercises': 0});
-      stats[muscle]!['sets'] = stats[muscle]!['sets']! + ex.defaultSets;
+      stats[muscle]!['sets'] = stats[muscle]!['sets']! + ex.entries.length;
       stats[muscle]!['exercises'] = stats[muscle]!['exercises']! + 1;
     }
 
@@ -621,6 +673,100 @@ class _PlanVolumeChart extends StatelessWidget {
         final sets = mapEntry.value.value['sets']!;
         final exCount = mapEntry.value.value['exercises']!;
         final color = _colors[idx % _colors.length];
+        final fraction = sets / (maxSets == 0 ? 1 : maxSets);
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+              Flexible(
+                child: Text(name,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  overflow: TextOverflow.ellipsis),
+              ),
+              const SizedBox(width: 8),
+              Text('$sets serii  |  $exCount ćw.',
+                  style: const TextStyle(color: AppTheme.textSecond, fontSize: 11)),
+            ]),
+            const SizedBox(height: 4),
+            Stack(children: [
+              Container(
+                height: 8, width: double.infinity,
+                decoration: BoxDecoration(color: barBg, borderRadius: BorderRadius.circular(4)),
+              ),
+              FractionallySizedBox(
+                widthFactor: fraction.clamp(0.0, 1.0),
+                child: Container(
+                  height: 8,
+                  decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
+                ),
+              ),
+            ]),
+          ]),
+        );
+      }),
+    ]);
+  }
+}
+
+// ── Podsumowanie objętości WSZYSTKICH planów ──────────────────
+
+class _GlobalPlanVolumeChart extends StatelessWidget {
+  final List<WorkoutPlan> plans;
+  const _GlobalPlanVolumeChart({required this.plans});
+
+  static const _colors = [
+    Color(0xFFFF6B6B), Color(0xFF4ECDC4), Color(0xFF45B7D1),
+    Color(0xFFF7DC6F), Color(0xFFBB8FCE), Color(0xFF82E0AA),
+    Color(0xFFF0B27A), Color(0xFF85C1E9), Color(0xFFABEBC6),
+    Color(0xFFD2B4DE),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    if (plans.isEmpty) {
+      return const Text('Brak planów.', style: TextStyle(color: AppTheme.textSecond));
+    }
+
+    // Map: muscleGroupName -> { 'sets': int, 'exercises': int }
+    final Map<String, Map<String, int>> stats = {};
+    for (final plan in plans) {
+      for (final ex in plan.exercises) {
+        final muscle = ex.muscleGroupName ?? 'Inne';
+        stats.putIfAbsent(muscle, () => {'sets': 0, 'exercises': 0});
+        stats[muscle]!['sets'] = stats[muscle]!['sets']! + ex.entries.length;
+        stats[muscle]!['exercises'] = stats[muscle]!['exercises']! + 1;
+      }
+    }
+
+    if (stats.isEmpty) {
+      return const Text('Brak ćwiczeń w planach.', style: TextStyle(color: AppTheme.textSecond));
+    }
+
+    final entries = stats.entries.toList()
+      ..sort((a, b) => b.value['sets']!.compareTo(a.value['sets']!));
+    final maxSets = entries.isNotEmpty ? entries.first.value['sets']! : 1;
+    
+    final accent = Theme.of(context).colorScheme.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final barBg = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.06);
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        _LegendDot(color: accent),
+        const SizedBox(width: 6),
+        const Text('Serie (razem we wszystkich planach)', style: TextStyle(color: AppTheme.textSecond, fontSize: 11)),
+      ]),
+      const SizedBox(height: 12),
+      ...entries.asMap().entries.map((mapEntry) {
+        final idx = mapEntry.key;
+        final name = mapEntry.value.key;
+        final sets = mapEntry.value.value['sets']!;
+        final exCount = mapEntry.value.value['exercises']!;
+        final color = _colors[idx % _colors.length];
+        // Używamy maxSets jako 100% grubości paska – z pewnym limiterem wizualnym
         final fraction = sets / (maxSets == 0 ? 1 : maxSets);
 
         return Padding(
@@ -941,84 +1087,96 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
                                     }),
                                   ),
                                 ),
-                                // ── Ustawienia docelowe (Serie, Powtórzenia, Ciężar) ──
+                                // ── Ustawienia docelowe (Serie na liście) ──
                                 Padding(
-                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  child: Row(children: [
-                                    Expanded(
-                                      flex: 2,
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.center,
-                                        children: [
-                                          const Text('Serie', style: TextStyle(color: AppTheme.textSecond, fontSize: 11)),
-                                          const SizedBox(height: 4),
-                                          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                            InkWell(
-                                              onTap: () { if (ex.defaultSets > 1) setState(() => ex.defaultSets--); },
-                                              child: Icon(Icons.remove, size: 18, color: Theme.of(context).colorScheme.primary),
-                                            ),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                  child: Column(
+                                    children: [
+                                      ...ex.entries.asMap().entries.map((mapEntry) {
+                                        final setIndex = mapEntry.key;
+                                        final setEntry = mapEntry.value;
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 4),
+                                          child: Row(children: [
+                                            Text('${setIndex + 1}',
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                                            const SizedBox(width: 12),
+                                            const Text('Powt.', style: TextStyle(color: AppTheme.textSecond, fontSize: 11)),
                                             const SizedBox(width: 6),
-                                            Text('${ex.defaultSets}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                            const SizedBox(width: 6),
-                                            InkWell(
-                                              onTap: () => setState(() => ex.defaultSets++),
-                                              child: Icon(Icons.add, size: 18, color: Theme.of(context).colorScheme.primary),
-                                            ),
-                                          ]),
-                                        ],
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 2,
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.center,
-                                        children: [
-                                          const Text('Powt.', style: TextStyle(color: AppTheme.textSecond, fontSize: 11)),
-                                          const SizedBox(height: 4),
-                                          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                            InkWell(
-                                              onTap: () { if (ex.defaultReps > 1) setState(() => ex.defaultReps--); },
-                                              child: Icon(Icons.remove, size: 18, color: Theme.of(context).colorScheme.primary),
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Text('${ex.defaultReps}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                                            const SizedBox(width: 6),
-                                            InkWell(
-                                              onTap: () => setState(() => ex.defaultReps++),
-                                              child: Icon(Icons.add, size: 18, color: Theme.of(context).colorScheme.primary),
-                                            ),
-                                          ]),
-                                        ],
-                                      ),
-                                    ),
-                                    Expanded(
-                                      flex: 3,
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.center,
-                                        children: [
-                                          const Text('Ciężar (kg)', style: TextStyle(color: AppTheme.textSecond, fontSize: 11)),
-                                          SizedBox(
-                                            height: 28,
-                                            child: TextFormField(
-                                              initialValue: ex.defaultWeight?.toString() ?? '',
-                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                              decoration: const InputDecoration(
-                                                contentPadding: EdgeInsets.only(bottom: 12),
-                                                isDense: true,
-                                                hintText: 'auto',
-                                                border: UnderlineInputBorder(),
+                                            Row(children: [
+                                              InkWell(
+                                                onTap: () { if (setEntry.reps > 1) setState(() => setEntry.reps--); },
+                                                child: Icon(Icons.remove, size: 18, color: Theme.of(context).colorScheme.primary),
                                               ),
-                                              onChanged: (val) {
-                                                ex.defaultWeight = double.tryParse(val.replaceAll(',', '.'));
-                                              },
+                                              const SizedBox(width: 6),
+                                              SizedBox(
+                                                width: 24,
+                                                child: Text('${setEntry.reps}', textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                                              ),
+                                              const SizedBox(width: 6),
+                                              InkWell(
+                                                onTap: () => setState(() => setEntry.reps++),
+                                                child: Icon(Icons.add, size: 18, color: Theme.of(context).colorScheme.primary),
+                                              ),
+                                            ]),
+                                            const Spacer(),
+                                            const Text('Ciężar:', style: TextStyle(color: AppTheme.textSecond, fontSize: 11)),
+                                            const SizedBox(width: 6),
+                                            SizedBox(
+                                              width: 50,
+                                              height: 28,
+                                              child: TextFormField(
+                                                key: Key('${ex.exerciseId}_set_$setIndex'),
+                                                initialValue: setEntry.weight?.toString() ?? '',
+                                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                                textAlign: TextAlign.center,
+                                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                                decoration: const InputDecoration(
+                                                  contentPadding: EdgeInsets.only(bottom: 12),
+                                                  isDense: true,
+                                                  hintText: 'auto',
+                                                  border: UnderlineInputBorder(),
+                                                ),
+                                                onChanged: (val) {
+                                                  setEntry.weight = double.tryParse(val.replaceAll(',', '.'));
+                                                },
+                                              ),
                                             ),
+                                            const SizedBox(width: 8),
+                                            if (ex.entries.length > 1)
+                                              InkWell(
+                                                onTap: () => setState(() => ex.entries.removeAt(setIndex)),
+                                                child: const Icon(Icons.close, size: 16, color: AppTheme.textSecond),
+                                              ),
+                                            if (ex.entries.length <= 1)
+                                              const SizedBox(width: 16),
+                                          ]),
+                                        );
+                                      }),
+                                      const SizedBox(height: 4),
+                                      Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton.icon(
+                                          onPressed: () {
+                                            setState(() {
+                                              final last = ex.entries.isNotEmpty ? ex.entries.last : null;
+                                              ex.entries.add(PlanSetEntry(
+                                                reps: last?.reps ?? 10,
+                                                weight: last?.weight,
+                                              ));
+                                            });
+                                          },
+                                          icon: const Icon(Icons.add, size: 16),
+                                          label: const Text('Dodaj serię', style: TextStyle(fontSize: 12)),
+                                          style: TextButton.styleFrom(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                           ),
-                                        ],
+                                        ),
                                       ),
-                                    ),
-                                  ]),
+                                    ],
+                                  ),
                                 ),
                                 Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 16),

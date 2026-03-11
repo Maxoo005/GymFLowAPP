@@ -203,24 +203,39 @@ class WorkoutPlan {
           supersetGroupId: e.supersetGroupId,
           entries: remembered != null
               ? remembered.map((s) => SetEntry(reps: s.reps, weight: s.weight, difficulty: s.difficulty)).toList()
-              : List.generate(
-                  e.defaultSets,
-                  (_) => SetEntry(
-                    reps: e.defaultReps,
-                    weight: e.defaultWeight ?? 0.0,
-                  ),
-                ),
+              : e.entries.map((se) => SetEntry(
+                    reps: se.reps,
+                    weight: se.weight ?? 0.0,
+                  )).toList(),
         );
       }).toList();
+}
+
+class PlanSetEntry {
+  int reps;
+  double? weight;
+
+  PlanSetEntry({
+    this.reps = 10,
+    this.weight,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'reps': reps,
+        if (weight != null) 'weight': weight,
+      };
+
+  factory PlanSetEntry.fromJson(Map<String, dynamic> json) => PlanSetEntry(
+        reps: json['reps'] ?? 10,
+        weight: json['weight'] != null ? (json['weight'] as num).toDouble() : null,
+      );
 }
 
 // ── Ćwiczenie w planie ───────────────────────────────────────
 class PlanExercise {
   final String exerciseId;
   final String exerciseName;
-  int defaultSets;
-  int defaultReps;
-  double? defaultWeight;
+  List<PlanSetEntry> entries;
   int restSeconds;
   final String? muscleGroupName;
 
@@ -230,37 +245,44 @@ class PlanExercise {
   PlanExercise({
     required this.exerciseId,
     required this.exerciseName,
-    this.defaultSets = 3,
-    this.defaultReps = 10,
-    this.defaultWeight,
+    List<PlanSetEntry>? entries,
     this.restSeconds = 60,
     this.muscleGroupName,
     this.supersetGroupId,
-  });
+  }) : entries = entries ?? List.generate(3, (_) => PlanSetEntry());
 
   bool get isInSuperset => supersetGroupId != null;
 
   Map<String, dynamic> toJson() => {
     'exerciseId': exerciseId,
     'exerciseName': exerciseName,
-    'defaultSets': defaultSets,
-    'defaultReps': defaultReps,
-    if (defaultWeight != null) 'defaultWeight': defaultWeight,
+    'entries': entries.map((e) => e.toJson()).toList(),
     'restSeconds': restSeconds,
     if (muscleGroupName != null) 'muscleGroupName': muscleGroupName,
     if (supersetGroupId != null) 'supersetGroupId': supersetGroupId,
   };
 
-  factory PlanExercise.fromJson(Map<String, dynamic> json) => PlanExercise(
-    exerciseId: json['exerciseId'],
-    exerciseName: json['exerciseName'],
-    defaultSets: json['defaultSets'] ?? 3,
-    defaultReps: json['defaultReps'] ?? 10,
-    defaultWeight: json['defaultWeight'] != null ? (json['defaultWeight'] as num).toDouble() : null,
-    restSeconds: json['restSeconds'] ?? 60,
-    muscleGroupName: json['muscleGroupName'] as String?,
-    supersetGroupId: json['supersetGroupId'] as String?,
-  );
+  factory PlanExercise.fromJson(Map<String, dynamic> json) {
+    List<PlanSetEntry> parsedEntries;
+    if (json.containsKey('entries')) {
+      parsedEntries = (json['entries'] as List).map((e) => PlanSetEntry.fromJson(e)).toList();
+    } else {
+      // Obsługa starego formatu
+      final sets = json['defaultSets'] ?? 3;
+      final reps = json['defaultReps'] ?? 10;
+      final defaultWeight = json['defaultWeight'] != null ? (json['defaultWeight'] as num).toDouble() : null;
+      parsedEntries = List.generate(sets, (_) => PlanSetEntry(reps: reps, weight: defaultWeight));
+    }
+
+    return PlanExercise(
+      exerciseId: json['exerciseId'],
+      exerciseName: json['exerciseName'],
+      entries: parsedEntries,
+      restSeconds: json['restSeconds'] ?? 60,
+      muscleGroupName: json['muscleGroupName'] as String?,
+      supersetGroupId: json['supersetGroupId'] as String?,
+    );
+  }
 }
 
 /// Generuje nowe ID grupy serii łączonej
