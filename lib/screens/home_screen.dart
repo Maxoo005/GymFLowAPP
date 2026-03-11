@@ -89,10 +89,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         : 'Czas na trening – możesz to zrobić!',
                       style: textTheme.bodyMedium?.copyWith(color: Colors.white70)),
                   ])),
-                  TextButton(
-                    onPressed: () => _quickStart(context),
-                    child: Text(trainedToday ? 'Kolejny' : 'Start',
-                        style: TextStyle(color: accent)),
+                  Tooltip(
+                    message: trainedToday ? 'Rozpocznij kolejny trening' : 'Rozpocznij nowy trening',
+                    child: TextButton(
+                      onPressed: () => _quickStart(context),
+                      child: Text(trainedToday ? 'Kolejny' : 'Start',
+                          style: TextStyle(color: accent)),
+                    ),
                   ),
                 ]),
               ),
@@ -292,7 +295,10 @@ class _StatCard extends StatelessWidget {
       border: Border.all(color: AppTheme.border(context)),
     ),
     child: Column(children: [
-      Icon(icon, color: color, size: 22),
+      Tooltip(
+        message: label,
+        child: Icon(icon, color: color, size: 22),
+      ),
       const SizedBox(height: 6),
       Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 15),
           textAlign: TextAlign.center),
@@ -329,7 +335,10 @@ class _WeekBar extends StatelessWidget {
                     : Border.all(color: AppTheme.border(context)),
               ),
               child: active
-                  ? const Icon(Icons.check, color: Colors.white, size: 16)
+                  ? Tooltip(
+                      message: 'Trenowałeś w tym dniu',
+                      child: const Icon(Icons.check, color: Colors.white, size: 16),
+                    )
                   : null,
             ),
             const SizedBox(height: 4),
@@ -395,11 +404,14 @@ class _NoWorkoutCard extends StatelessWidget {
       const SizedBox(width: 14),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Brak treningów', style: Theme.of(context).textTheme.titleMedium),
-        Text('Zacznij swój pierwszy trening!', style: Theme.of(context).textTheme.bodyMedium),
+        Text('Naciśnij "Start" aby zapisać swoją pierwszą aktywność!', style: Theme.of(context).textTheme.bodyMedium),
       ])),
-      TextButton(onPressed: onStart,
-          child: Text('Start',
-              style: TextStyle(color: Theme.of(context).colorScheme.primary))),
+      Tooltip(
+        message: 'Otwórz menu startu treningu',
+        child: TextButton(onPressed: onStart,
+            child: Text('Start',
+                style: TextStyle(color: Theme.of(context).colorScheme.primary))),
+      ),
     ]),
   );
 }

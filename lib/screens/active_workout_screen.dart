@@ -421,54 +421,96 @@ class _ExerciseCard extends StatelessWidget {
               child: const Icon(Icons.fitness_center, color: AppTheme.accent, size: 18),
             ),
             const SizedBox(width: 10),
-            Expanded(
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     if (workoutSet.isInSuperset)
                       Container(
-                        margin: const EdgeInsets.only(right: 6),
+                        margin: const EdgeInsets.only(bottom: 4),
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: AppTheme.accent.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Text('🔗 Łączona',
+                        child: const Text('🔗 Superseria',
                             style: TextStyle(
                               fontSize: 10,
                               color: AppTheme.accent,
                               fontWeight: FontWeight.w600,
                             )),
                       ),
-                    Expanded(
-                      child: Text(workoutSet.exerciseName,
-                          style: Theme.of(context).textTheme.titleMedium),
+                    Text(
+                      workoutSet.exerciseName,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                     ),
+                    if (workoutSet.isOriginalPlanExercise)
+                      const Text(
+                        'z planu',
+                        style: TextStyle(color: AppTheme.textSecond, fontSize: 11),
+                      ),
                   ],
                 ),
-                if (workoutSet.isOriginalPlanExercise)
-                  const Text('z planu',
-                      style: TextStyle(color: AppTheme.textSecond, fontSize: 11)),
-              ]),
-            ),
+              ),
             // Zamień ćwiczenie
-            IconButton(
-              icon: const Icon(Icons.swap_horiz, color: AppTheme.accent, size: 20),
-              tooltip: 'Zamień ćwiczenie',
-              onPressed: onSwap,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+            Tooltip(
+              message: 'Podmień na inne ćwiczenie (zostawia serie)',
+              child: IconButton(
+                icon: const Icon(Icons.swap_horiz, color: AppTheme.accent, size: 20),
+                onPressed: onSwap,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
             ),
             const SizedBox(width: 8),
             // Usuń ćwiczenie
-            IconButton(
-              icon: const Icon(Icons.delete_outline, color: AppTheme.textSecond, size: 20),
-              onPressed: onDelete,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+            Tooltip(
+              message: 'Usuń z tego treningu',
+              child: IconButton(
+                icon: const Icon(Icons.delete_outline, color: AppTheme.textSecond, size: 20),
+                onPressed: onDelete,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
             ),
           ]),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
+          // ── Nagłówki tabeli serii ──────────────────────
+          if (workoutSet.entries.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 28,
+                    child: Text('Seria', style: TextStyle(color: AppTheme.textSecond, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ),
+                  const Expanded(
+                    flex: 2,
+                    child: Text('Powt.', style: TextStyle(color: AppTheme.textSecond, fontSize: 10, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    flex: 2,
+                    child: Text('Ciężar', style: TextStyle(color: AppTheme.textSecond, fontSize: 10, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    flex: 4,
+                    child: Text('Trudność (1-5)', style: TextStyle(color: AppTheme.textSecond, fontSize: 10, fontWeight: FontWeight.bold), textAlign: TextAlign.right),
+                  ),
+                  const SizedBox(width: 14),
+                  const SizedBox(
+                    width: 28,
+                    child: Text('Wyk.', style: TextStyle(color: AppTheme.textSecond, fontSize: 10, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                  ),
+                  if (workoutSet.entries.length > 1) const SizedBox(width: 20),
+                ],
+              ),
+            ),
 
           // ── Serie ────────────────────────────────────
           ...workoutSet.entries.asMap().entries.map((entry) {
@@ -528,37 +570,42 @@ class _ExerciseCard extends StatelessWidget {
               ),
               if (canToggleSuperset) ...[
                 const SizedBox(width: 8),
-                GestureDetector(
-                  onTap: onToggleSuperset,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isLinkedWithNext
-                          ? AppTheme.accent.withValues(alpha: 0.12)
-                          : Colors.white.withValues(alpha: 0.04),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
+                Tooltip(
+                  message: isLinkedWithNext 
+                      ? 'Rozłącz superserię' 
+                      : 'Połącz to ćwiczenie z następnym w superserię (serię łączoną)',
+                  child: GestureDetector(
+                    onTap: onToggleSuperset,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
                         color: isLinkedWithNext
-                            ? AppTheme.accent.withValues(alpha: 0.4)
-                            : Colors.white12,
-                      ),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(
-                        isLinkedWithNext ? Icons.link : Icons.link_off,
-                        color: isLinkedWithNext ? AppTheme.accent : AppTheme.textSecond,
-                        size: 16,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        isLinkedWithNext ? 'Połączone' : 'Połącz z nast.',
-                        style: TextStyle(
-                          color: isLinkedWithNext ? AppTheme.accent : AppTheme.textSecond,
-                          fontSize: 12,
-                          fontWeight: isLinkedWithNext ? FontWeight.bold : FontWeight.normal,
+                            ? AppTheme.accent.withValues(alpha: 0.12)
+                            : Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isLinkedWithNext
+                              ? AppTheme.accent.withValues(alpha: 0.4)
+                              : Colors.white12,
                         ),
                       ),
-                    ]),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(
+                          isLinkedWithNext ? Icons.link : Icons.link_off,
+                          color: isLinkedWithNext ? AppTheme.accent : AppTheme.textSecond,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isLinkedWithNext ? 'Superseria' : 'Superseria',
+                          style: TextStyle(
+                            color: isLinkedWithNext ? AppTheme.accent : AppTheme.textSecond,
+                            fontSize: 12,
+                            fontWeight: isLinkedWithNext ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                      ]),
+                    ),
                   ),
                 ),
               ],
@@ -646,24 +693,30 @@ class _SetRow extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         // Wykonane (Checkbox / Przycisk)
-        GestureDetector(
-          onTap: () => onChanged(entry.copyWith(isDone: !entry.isDone)),
-          child: Container(
-            width: 28, height: 28,
-            decoration: BoxDecoration(
-              color: entry.isDone ? AppTheme.success : Colors.transparent,
-              border: Border.all(color: entry.isDone ? AppTheme.success : AppTheme.textSecond.withValues(alpha: 0.5)),
-              borderRadius: BorderRadius.circular(6),
+        Tooltip(
+          message: entry.isDone ? 'Oznacz jako niewykonane' : 'Zakończ serię (uruchamia stoper)',
+          child: GestureDetector(
+            onTap: () => onChanged(entry.copyWith(isDone: !entry.isDone)),
+            child: Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(
+                color: entry.isDone ? AppTheme.success : Colors.transparent,
+                border: Border.all(color: entry.isDone ? AppTheme.success : AppTheme.textSecond.withValues(alpha: 0.5)),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: entry.isDone ? const Icon(Icons.check, size: 18, color: Colors.white) : null,
             ),
-            child: entry.isDone ? const Icon(Icons.check, size: 18, color: Colors.white) : null,
           ),
         ),
         // Usuń serię
         if (onDelete != null) ...[
           const SizedBox(width: 4),
-          GestureDetector(
-            onTap: onDelete,
-            child: const Icon(Icons.close, size: 16, color: AppTheme.textSecond),
+          Tooltip(
+            message: 'Usuń serię',
+            child: GestureDetector(
+              onTap: onDelete,
+              child: const Icon(Icons.close, size: 16, color: AppTheme.textSecond),
+            ),
           ),
         ],
       ]),

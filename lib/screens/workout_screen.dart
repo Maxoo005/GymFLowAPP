@@ -241,7 +241,7 @@ class _WorkoutScreenState extends State<WorkoutScreen>
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Historia treningów
+// Historia treningów — grupowanie wg miesiąca
 // ═══════════════════════════════════════════════════════════════
 
 class _HistoryTab extends StatelessWidget {
@@ -249,6 +249,33 @@ class _HistoryTab extends StatelessWidget {
   final VoidCallback onAdd;
   final ValueChanged<String> onDelete;
   const _HistoryTab({required this.workouts, required this.onAdd, required this.onDelete});
+
+  static const _monthNames = [
+    'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
+    'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień',
+  ];
+
+  /// Grupuje treningi wg (rok, miesiąc) zachowując kolejność malejącą
+  Map<String, List<Workout>> _groupByMonth() {
+    final Map<String, List<Workout>> groups = {};
+    for (final w in workouts) {
+      final key = '${w.date.year}-${w.date.month.toString().padLeft(2, '0')}';
+      groups.putIfAbsent(key, () => []).add(w);
+    }
+    return groups;
+  }
+
+  String _monthLabel(String key) {
+    final parts = key.split('-');
+    final year = parts[0];
+    final month = int.parse(parts[1]);
+    return '${_monthNames[month - 1]} $year';
+  }
+
+  bool _isCurrentMonth(String key) {
+    final now = DateTime.now();
+    return key == '${now.year}-${now.month.toString().padLeft(2, '0')}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -258,24 +285,59 @@ class _HistoryTab extends StatelessWidget {
         const SizedBox(height: 16),
         Text('Brak historii treningów', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 8),
-        Text('Zacznij swój pierwszy trening!', style: Theme.of(context).textTheme.bodyMedium),
+        Text('Naciśnij "+" w górnym rogu aby zapisać aktywność!', style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 24),
         ElevatedButton.icon(onPressed: onAdd, icon: const Icon(Icons.add), label: const Text('Nowy trening')),
       ]));
     }
+
+    final groups = _groupByMonth();
+    final keys = groups.keys.toList()..sort((a, b) => b.compareTo(a));
+
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: workouts.length,
-      itemBuilder: (ctx, i) => _WorkoutHistoryCard(
-        workout: workouts[i],
-        onDelete: () => onDelete(workouts[i].id),
-        onTap: () => Navigator.push(
-          ctx,
-          MaterialPageRoute(
-            builder: (_) => WorkoutDetailScreen(workout: workouts[i]),
+      itemCount: keys.length,
+      itemBuilder: (ctx, i) {
+        final key = keys[i];
+        final monthWorkouts = groups[key]!;
+        final accent = Theme.of(ctx).colorScheme.primary;
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Theme(
+            data: Theme.of(ctx).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              initiallyExpanded: _isCurrentMonth(key) || i == 0,
+              tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              leading: Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(Icons.calendar_month, color: accent, size: 20),
+              ),
+              title: Text(_monthLabel(key),
+                style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+              subtitle: Text('${monthWorkouts.length} ${monthWorkouts.length == 1 ? 'trening' : monthWorkouts.length < 5 ? 'treningi' : 'treningów'}',
+                style: TextStyle(color: AppTheme.textSec(ctx), fontSize: 12)),
+              children: monthWorkouts.map((w) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: _WorkoutHistoryCard(
+                  workout: w,
+                  onDelete: () => onDelete(w.id),
+                  onTap: () => Navigator.push(
+                    ctx,
+                    MaterialPageRoute(
+                      builder: (_) => WorkoutDetailScreen(workout: w),
+                    ),
+                  ),
+                ),
+              )).toList(),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -361,7 +423,8 @@ class _PlansTab extends StatelessWidget {
             const SizedBox(height: 16),
             Text('Brak planów treningowych', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            Text('Stwórz swój plan i ćwicz regularnie!', style: Theme.of(context).textTheme.bodyMedium),
+            Text('Zbuduj własny zestaw ćwiczeń na poszczególne dni, \naby łatwiej rozpocząć trening jednym kliknięciem!', 
+                  style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
             const SizedBox(height: 24),
             ElevatedButton.icon(onPressed: onAddPlan, icon: const Icon(Icons.add), label: const Text('Utwórz plan')),
           ]))
@@ -457,12 +520,14 @@ class _PlanCardState extends State<_PlanCard> {
                   ),
                 ])),
                 // Edytuj
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, color: AppTheme.textSecond, size: 20),
-                  tooltip: 'Edytuj plan',
-                  onPressed: widget.onEdit,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
+                Tooltip(
+                  message: 'Edytuj strukturę planu',
+                  child: IconButton(
+                    icon: const Icon(Icons.edit_outlined, color: AppTheme.textSecond, size: 20),
+                    onPressed: widget.onEdit,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
@@ -990,48 +1055,53 @@ class _CreatePlanScreenState extends State<CreatePlanScreen> {
                                 if (!isLast)
                                   Padding(
                                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                    child: InkWell(
-                                      borderRadius: BorderRadius.circular(8),
-                                      onTap: () => setState(() => _toggleSuperset(i)),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                        decoration: BoxDecoration(
-                                          color: linkedWithNext
-                                              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
-                                              : Colors.white.withValues(alpha: 0.04),
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(
+                                    child: Tooltip(
+                                      message: linkedWithNext
+                                          ? 'Rozłącz superserię'
+                                          : 'Połącz to ćwiczenie z następnym w superserię (serię łączoną)',
+                                      child: InkWell(
+                                        borderRadius: BorderRadius.circular(8),
+                                        onTap: () => setState(() => _toggleSuperset(i)),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          decoration: BoxDecoration(
                                             color: linkedWithNext
-                                                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)
-                                                : Colors.white12,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              linkedWithNext ? Icons.link : Icons.link_off,
-                                              size: 16,
+                                                ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.12)
+                                                : Colors.white.withValues(alpha: 0.04),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(
                                               color: linkedWithNext
-                                                  ? Theme.of(context).colorScheme.primary
-                                                  : AppTheme.textSecond,
+                                                  ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)
+                                                  : Colors.white12,
                                             ),
-                                            const SizedBox(width: 6),
-                                            Text(
-                                              linkedWithNext
-                                                  ? 'Seria łączona z następnym'
-                                                  : 'Połącz w serię łączoną',
-                                              style: TextStyle(
-                                                fontSize: 12,
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(
+                                                linkedWithNext ? Icons.link : Icons.link_off,
+                                                size: 16,
                                                 color: linkedWithNext
                                                     ? Theme.of(context).colorScheme.primary
                                                     : AppTheme.textSecond,
-                                                fontWeight: linkedWithNext
-                                                    ? FontWeight.w600
-                                                    : FontWeight.normal,
                                               ),
-                                            ),
-                                          ],
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                linkedWithNext
+                                                    ? 'W superserii'
+                                                    : 'Superseria',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: linkedWithNext
+                                                      ? Theme.of(context).colorScheme.primary
+                                                      : AppTheme.textSecond,
+                                                  fontWeight: linkedWithNext
+                                                      ? FontWeight.w600
+                                                      : FontWeight.normal,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),

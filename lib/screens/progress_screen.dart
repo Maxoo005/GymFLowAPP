@@ -14,30 +14,19 @@ class _ProgressScreenState extends State<ProgressScreen> {
   int _rangeIndex = 0;
   WorkoutService get _ws => WorkoutService.instance;
 
-  List<int> get _chartData {
-    switch (_rangeIndex) {
-      case 0: return _ws.weeklyActivity;
-      case 1: return _monthData();
-      default: return _ws.weeklyActivity;
-    }
-  }
-
-  List<int> _monthData() {
-    final now = DateTime.now();
-    final daysInMonth = DateUtils.getDaysInMonth(now.year, now.month);
-    final counts = List<int>.filled(daysInMonth, 0);
-    for (final w in _ws.workouts) {
-      if (w.date.year == now.year && w.date.month == now.month) {
-        counts[w.date.day - 1]++;
-      }
-    }
-    return counts;
-  }
+  static const _rangeLabels = ['Ten tydzień', 'Ten miesiąc', 'Ostatnie 3 miesiące', 'Ten rok'];
+  static const _rangeSubs = [
+    'treningi tego tygodnia',
+    'treningi tego miesiąca',
+    'treningi z ostatnich 3 miesięcy',
+    'treningi tego roku',
+  ];
 
   @override
   Widget build(BuildContext context) {
     final records = _ws.personalRecords;
-    final muscleStats = _ws.muscleGroupStats;
+    final muscleStats = _ws.muscleGroupStatsInRange(_rangeIndex);
+    final chartData = _ws.activityData(_rangeIndex);
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
@@ -55,23 +44,23 @@ class _ProgressScreenState extends State<ProgressScreen> {
           // ── Wykres aktywności ────────────────────────
           Text('Aktywność', style: textTheme.titleLarge),
           const SizedBox(height: 12),
-          _ActivityChart(data: _chartData, rangeIndex: _rangeIndex),
+          _ActivityChart(data: chartData, rangeIndex: _rangeIndex),
           const SizedBox(height: 28),
 
-          // ── Podsumowanie miesiąca ────────────────────
-          Text('Ten miesiąc', style: textTheme.titleLarge),
+          // ── Podsumowanie zakresu ─────────────────────
+          Text(_rangeLabels[_rangeIndex], style: textTheme.titleLarge),
           const SizedBox(height: 12),
           _MonthSummary(
-            count: _ws.monthlyCount,
-            duration: _ws.monthlyDuration,
-            volume: _ws.monthlyVolume,
+            count: _ws.countInRange(_rangeIndex),
+            duration: _ws.durationInRange(_rangeIndex),
+            volume: _ws.volumeInRange(_rangeIndex),
           ),
           const SizedBox(height: 28),
 
           // ── Rozkład partii ciała ─────────────────────
           Text('Rozkład partii ciała', style: textTheme.titleLarge),
           const SizedBox(height: 4),
-          Text('Liczba serii per partia ciała (wszystkie treningi)',
+          Text('Liczba serii per partia ciała (${_rangeSubs[_rangeIndex]})',
               style: textTheme.bodySmall?.copyWith(color: AppTheme.textSec(context))),
           const SizedBox(height: 16),
           _MuscleGroupChart(stats: muscleStats),
@@ -92,8 +81,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 Icon(Icons.emoji_events_outlined,
                     color: AppTheme.textSec(context), size: 28),
                 const SizedBox(width: 12),
-                Text('Ukończ trening, żeby zobaczyć rekordy!',
-                    style: textTheme.bodyMedium),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Brak rekordów', style: textTheme.titleMedium),
+                      const SizedBox(height: 2),
+                      Text('Ukończ trening i dodaj obciążenie, żeby zobaczyć tutaj swoje najlepsze wyniki!',
+                          style: textTheme.bodyMedium),
+                    ],
+                  ),
+                ),
               ]),
             )
           else
@@ -161,9 +159,40 @@ class _ActivityChart extends StatelessWidget {
   final int rangeIndex;
   const _ActivityChart({required this.data, required this.rangeIndex});
 
+  String _bottomLabel(int rangeIndex, int i) {
+    const dayLabels = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb', 'Nd'];
+    const monthLabels = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru'];
+    switch (rangeIndex) {
+      case 0: return dayLabels[i];
+      case 1: return '${i + 1}';
+      case 2: return 'T${i + 1}';
+      case 3: return monthLabels[i];
+      default: return '${i + 1}';
+    }
+  }
+
+  bool _showLabel(int rangeIndex, int i) {
+    switch (rangeIndex) {
+      case 0: return true;
+      case 1: return i % 5 == 0;
+      case 2: return i % 2 == 0;
+      case 3: return true;
+      default: return true;
+    }
+  }
+
+  double _barWidth(int rangeIndex) {
+    switch (rangeIndex) {
+      case 0: return 24;
+      case 1: return 8;
+      case 2: return 14;
+      case 3: return 16;
+      default: return 8;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    const dayLabels = ['Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb', 'Nd'];
     final maxY = (data.fold(0, (a, b) => a > b ? a : b) + 1.0).clamp(2.0, 999.0);
     final accent = Theme.of(context).colorScheme.primary;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -196,10 +225,9 @@ class _ActivityChart extends StatelessWidget {
               getTitlesWidget: (v, _) {
                 final i = v.toInt();
                 if (i < 0 || i >= data.length) return const SizedBox.shrink();
-                final label = rangeIndex == 0 ? dayLabels[i] : '${i + 1}';
-                if (rangeIndex == 1 && i % 5 != 0) return const SizedBox.shrink();
+                if (!_showLabel(rangeIndex, i)) return const SizedBox.shrink();
                 return Padding(padding: const EdgeInsets.only(top: 4),
-                  child: Text(label, style: TextStyle(
+                  child: Text(_bottomLabel(rangeIndex, i), style: TextStyle(
                     color: AppTheme.textSec(context), fontSize: 11)));
               },
             )),
@@ -212,7 +240,7 @@ class _ActivityChart extends StatelessWidget {
             barRods: [BarChartRodData(
               toY: data[i].toDouble(),
               color: data[i] > 0 ? accent : emptyBarColor,
-              width: rangeIndex == 0 ? 24 : 8,
+              width: _barWidth(rangeIndex),
               borderRadius: BorderRadius.circular(4),
               backDrawRodData: BackgroundBarChartRodData(
                 show: true, toY: maxY,
@@ -258,10 +286,13 @@ class _MuscleGroupChart extends StatelessWidget {
         child: Column(children: [
           Icon(Icons.bar_chart, color: AppTheme.textSec(context), size: 40),
           const SizedBox(height: 12),
-          Text(
-            'Brak danych.\nUkończ treningi z przypisanymi ćwiczeniami,\naby zobaczyć rozkład partii ciała.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppTheme.textSec(context), fontSize: 13),
+          Tooltip(
+            message: 'Rozkład uzupełni się po zakończeniu treningu z ćwiczeniami z bazy',
+            child: Text(
+              'Brak danych w tym zakresie czasu.\nUkończ treningi z przypisanymi ćwiczeniami,\naby zobaczyć rozkład partii ciała.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppTheme.textSec(context), fontSize: 13),
+            ),
           ),
         ]),
       );
