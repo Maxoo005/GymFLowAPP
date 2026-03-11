@@ -33,7 +33,7 @@ class ShareService {
 
       // 4. Udostępnij za pomocą share_plus
       final xFile = XFile(imgFile.path, mimeType: 'image/png');
-      await Share.shareXFiles([xFile], text: 'Zobacz mój progres na GymFlow! 💪');
+      await Share.shareXFiles([xFile], text: 'Zobacz mój progres na GymLoom! 💪');
     } catch (e) {
       debugPrint('Błąd udostępniania widgetu: $e');
       rethrow;

@@ -80,7 +80,7 @@ class PlanShareCard extends StatelessWidget {
                     children: [
                       Icon(Icons.fitness_center, color: AppTheme.accent, size: 28),
                       SizedBox(width: 12),
-                      Text("GYMFLOW", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22, letterSpacing: 2)),
+                      Text("GYMLOOM", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22, letterSpacing: 2)),
                     ],
                   ),
                   const Spacer(flex: 2),
@@ -98,24 +98,31 @@ class PlanShareCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 32),
-                  
-                  // Top Partie
-                  if (sortedMuscles.isNotEmpty) ...[
-                    const Text("TOP PARTIE:", style: TextStyle(color: AppTheme.textSecond, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1)),
+
+                  if (plan.exercises.isNotEmpty) ...[
+                    const Text("ĆWICZENIA:", style: TextStyle(color: AppTheme.textSecond, fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 1)),
                     const SizedBox(height: 12),
-                    ...sortedMuscles.take(3).map((m) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
+                    ...plan.exercises.take(4).map((ex) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6.0),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(m.key, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500)),
-                          Text("${m.value} serii", style: const TextStyle(color: AppTheme.accent, fontSize: 18, fontWeight: FontWeight.bold)),
+                          Expanded(
+                            child: Text(ex.exerciseName, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          ),
+                          const SizedBox(width: 8),
+                          Text("${ex.entries.length} serie", style: const TextStyle(color: AppTheme.accent, fontSize: 14)),
                         ],
                       ),
                     )),
+                    if (plan.exercises.length > 4)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text("+ ${plan.exercises.length - 4} więcej...", style: const TextStyle(color: AppTheme.textSecond, fontSize: 12, fontStyle: FontStyle.italic)),
+                      ),
                   ],
 
-                  const Spacer(flex: 3),
+                  const Spacer(flex: 2),
                   
                   Container(
                     width: double.infinity,
@@ -126,7 +133,7 @@ class PlanShareCard extends StatelessWidget {
                       border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
                     ),
                     child: const Center(
-                      child: Text("Zbuduj własny na GymFlow", style: TextStyle(color: AppTheme.textSecond, fontSize: 14)),
+                      child: Text("Zbuduj własny na GymLoom", style: TextStyle(color: AppTheme.textSecond, fontSize: 14)),
                     ),
                   )
                 ],
@@ -220,7 +227,7 @@ class RecordShareCard extends StatelessWidget {
                 children: [
                   const Icon(Icons.fitness_center, color: Colors.white, size: 48),
                   const SizedBox(height: 16),
-                  const Text("GYMFLOW", style: TextStyle(color: AppTheme.textSecond, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 3)),
+                  const Text("GYMLOOM", style: TextStyle(color: AppTheme.textSecond, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 3)),
                   const Spacer(flex: 1),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -295,38 +302,45 @@ class _SharePreviewDialogState extends State<SharePreviewDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Widoczny na ekranie podgląd jest opakowany w Clippera z border radiusem (grafika sama w sobie ma ostre kąty bo idzie na insta)
-          ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: RepaintBoundary(
-              key: _globalKey,
-              child: widget.cardWidget,
-            ),
-          ),
-          const SizedBox(height: 24),
-          _isSharing 
-            ? const CircularProgressIndicator(color: AppTheme.accent)
-            : ElevatedButton.icon(
-              onPressed: _share,
-              icon: const Icon(Icons.ios_share),
-              label: const Text("Udostępnij zrzut", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.accent,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.9,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Widoczny na ekranie podgląd jest opakowany w Clippera z border radiusem (grafika sama w sobie ma ostre kąty bo idzie na insta)
+            Flexible(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: RepaintBoundary(
+                  key: _globalKey,
+                  child: widget.cardWidget,
+                ),
               ),
             ),
-          const SizedBox(height: 12),
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-             child: const Text("Anuluj", style: TextStyle(color: AppTheme.textSecond)),
-          )
-        ],
+            const SizedBox(height: 24),
+            _isSharing 
+              ? const CircularProgressIndicator(color: AppTheme.accent)
+              : ElevatedButton.icon(
+                onPressed: _share,
+                icon: const Icon(Icons.ios_share),
+                label: const Text("Udostępnij zrzut", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.accent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                ),
+              ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+               child: const Text("Anuluj", style: TextStyle(color: AppTheme.textSecond)),
+            )
+          ],
+        ),
       ),
     );
   }
