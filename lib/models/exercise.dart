@@ -61,7 +61,7 @@ class Exercise {
 }
 
 // ── Przykładowe ćwiczenia ────────────────────────────────
-final List<Exercise> defaultExercises ='),
+final List<Exercise> defaultExercises = [
   Exercise(name: 'Wyciskanie hantli na ławce skosnej dodatniej', muscleGroup: MuscleGroup.chest, description: 'Kładzie nacisk na górną (obojczykową) część mięśni piersiowych [4, 8]'),
   Exercise(name: 'Rozpiętki z hantlami na ławce płaskiej', muscleGroup: MuscleGroup.chest, description: 'Ćwiczenie izolowane pozwalające na głębokie rozciągnięcie włókien mięśniowych klatki [5, 25]'),
   Exercise(name: 'Pompki na poręczach (Dips)', muscleGroup: MuscleGroup.chest, description: 'Złożony ruch angażujący dół klatki piersiowej i tricepsy; wymaga dużej siły bazowej [6, 26]'),

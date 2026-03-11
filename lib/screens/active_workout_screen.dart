@@ -22,6 +22,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   late Workout _workout;
   Timer? _timer;
   int _seconds = 0;
+  final DateTime _workoutStart = DateTime.now();
 
   int _restSecondsRemaining = 0;
   Timer? _restTimer;
@@ -31,6 +32,21 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     super.initState();
     _workout = widget.workout;
     _startTimer();
+    _updateWorkoutNotification();
+  }
+
+  /// Aktualizuje powiadomienie na lock screenie z aktualnym stanem treningu.
+  void _updateWorkoutNotification() {
+    final totalSetsDone = _workout.exercises
+        .expand((e) => e.entries)
+        .where((s) => s.isDone)
+        .length;
+    NotificationService.instance.showWorkoutNotification(
+      workoutName: _workout.name,
+      startTimestamp: _workoutStart,
+      exerciseCount: _workout.exercises.length,
+      setsDone: totalSetsDone,
+    );
   }
 
   void _startTimer() {
@@ -68,6 +84,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
   void dispose() {
     _timer?.cancel();
     _restTimer?.cancel();
+    NotificationService.instance.cancelWorkoutNotification();
     super.dispose();
   }
 
@@ -159,6 +176,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                       ));
                     }
                   });
+                  _updateWorkoutNotification();
                 },
               )).toList(),
             )),
@@ -184,6 +202,7 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
     }
 
     await WorkoutService.instance.addWorkout(_workout);
+    await NotificationService.instance.cancelWorkoutNotification();
     if (!mounted) return;
     // ignore: use_build_context_synchronously
     Navigator.pop(context, true);
@@ -271,8 +290,8 @@ class _ActiveWorkoutScreenState extends State<ActiveWorkoutScreen> {
                           _ExerciseCard(
                             index: i,
                             workoutSet: ws,
-                            onDelete: () => setState(() => _workout.exercises.removeAt(i)),
-                            onChanged: () => setState(() {}),
+                            onDelete: () { setState(() => _workout.exercises.removeAt(i)); _updateWorkoutNotification(); },
+                            onChanged: () { setState(() {}); _updateWorkoutNotification(); },
                             onSwap: () => _pickExercise(replaceIndex: i),
                             onStartRest: _startRestTimer,
                             canToggleSuperset: !isLast,

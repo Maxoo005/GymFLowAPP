@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'theme/app_theme.dart';
 import 'services/workout_service.dart';
 import 'services/profile_service.dart';
@@ -12,6 +13,10 @@ import 'screens/workout_screen.dart';
 import 'screens/exercises_screen.dart';
 import 'screens/progress_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/splash_screen.dart';
+import 'screens/onboarding_screen.dart';
+
+late bool _onboardingDone;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +30,10 @@ void main() async {
     SettingsService.instance.init(),
     NutritionService.instance.init(),
   ]);
+
+  // Sprawdź czy onboarding został ukończony
+  final prefs = await SharedPreferences.getInstance();
+  _onboardingDone = prefs.getBool('onboarding_done') ?? false;
 
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
@@ -50,10 +59,41 @@ class GymLoomApp extends StatelessWidget {
           themeMode: settings.themeMode,
           theme: AppTheme.lightTheme(accentColor: settings.accentColor),
           darkTheme: AppTheme.darkTheme(accentColor: settings.accentColor),
-          home: const MainShell(),
+          home: SplashScreen(nextScreen: _AppRouter()),
         );
       },
     );
+  }
+}
+
+/// Router decydujący czy pokazać onboarding czy główny ekran
+class _AppRouter extends StatefulWidget {
+  @override
+  State<_AppRouter> createState() => _AppRouterState();
+}
+
+class _AppRouterState extends State<_AppRouter> {
+  late bool _showOnboarding;
+
+  @override
+  void initState() {
+    super.initState();
+    _showOnboarding = !_onboardingDone;
+  }
+
+  void _onOnboardingComplete() {
+    setState(() {
+      _showOnboarding = false;
+      _onboardingDone = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_showOnboarding) {
+      return OnboardingScreen(onComplete: _onOnboardingComplete);
+    }
+    return const MainShell();
   }
 }
 
